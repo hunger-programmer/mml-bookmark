@@ -5,30 +5,9 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="df86e90c-6d92-49d0-83bd-7c79e0a99488" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/.ai/mcp/mcp.json" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/mml-bookmark.iml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/php.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/AGENTS.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/app/favicon.ico" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/app/globals.css" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/app/layout.tsx" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/app/page.tsx" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/eslint.config.mjs" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/next.config.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/package-lock.json" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/public/file.svg" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/public/globe.svg" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/public/next.svg" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/public/vercel.svg" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/public/window.svg" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/tsconfig.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.ai/cezar/launch-key" beforeDir="false" afterPath="$PROJECT_DIR$/.ai/cezar/launch-key" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/CLAUDE.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/AGENTS.md" beforeDir="false" afterPath="$PROJECT_DIR$/AGENTS.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -49,61 +28,61 @@
   </component>
   <component name="NextEditCompletionFeaturesState">
     <decayedCancelled>
-      <entry key="MS100" value="5.763570430379297E-76" />
-      <entry key="MS500" value="1.0830830597835645E-15" />
-      <entry key="S2" value="3.459412688029588E-4" />
-      <entry key="S5" value="0.07802125830116788" />
-      <entry key="S10" value="0.4818857466509571" />
-      <entry key="S30" value="1.6293126786812877" />
-      <entry key="S60" value="2.21061705377695" />
-      <entry key="M2" value="2.575164771190442" />
-      <entry key="M5" value="2.8222260157596533" />
-      <entry key="M10" value="2.9097523484348726" />
-      <entry key="M15" value="2.939528394962031" />
-      <entry key="M30" value="2.9696098983748107" />
-      <entry key="H1" value="2.9847661768167475" />
-      <entry key="H2" value="2.992373370505468" />
-      <entry key="H4" value="2.9961842526687636" />
-      <entry key="D1" value="2.9993637039884353" />
-      <entry key="W1" value="2.999909092285766" />
+      <entry key="MS100" value="1.000128139706051" />
+      <entry key="MS500" value="1.1801303618879093" />
+      <entry key="S2" value="1.9802199685608501" />
+      <entry key="S5" value="2.4864794189525146" />
+      <entry key="S10" value="2.720860800613803" />
+      <entry key="S30" value="2.9014254013045955" />
+      <entry key="S60" value="2.9499836204905865" />
+      <entry key="M2" value="2.974806549604613" />
+      <entry key="M5" value="2.989877768539461" />
+      <entry key="M10" value="2.994931376405627" />
+      <entry key="M15" value="2.996619246762184" />
+      <entry key="M30" value="2.9983087873526078" />
+      <entry key="H1" value="2.999154197776697" />
+      <entry key="H2" value="2.999921988122007" />
+      <entry key="H4" value="3.055506573534073" />
+      <entry key="D1" value="6.856534018619647" />
+      <entry key="W1" value="10.973791746940648" />
     </decayedCancelled>
     <decayedSelected>
-      <entry key="MS100" value="1.0" />
-      <entry key="MS500" value="1.0000000000000149" />
-      <entry key="S2" value="1.0003488755223977" />
-      <entry key="S5" value="1.0414064692826628" />
-      <entry key="S10" value="1.2034857962676087" />
-      <entry key="S30" value="1.5881815082317443" />
-      <entry key="S60" value="1.766929923938129" />
-      <entry key="M2" value="1.8757453533637098" />
-      <entry key="M5" value="1.948311760858787" />
-      <entry key="M10" value="1.9738130009703028" />
-      <entry key="M15" value="1.9824649046104745" />
-      <entry key="M30" value="1.991193676639674" />
-      <entry key="H1" value="1.995587101483177" />
-      <entry key="H2" value="1.9977911111466051" />
-      <entry key="H4" value="1.9988949450000262" />
-      <entry key="D1" value="1.9998157393075147" />
-      <entry key="W1" value="1.9999736749649994" />
+      <entry key="MS100" value="0.0" />
+      <entry key="MS500" value="0.0" />
+      <entry key="S2" value="0.0" />
+      <entry key="S5" value="0.0" />
+      <entry key="S10" value="0.0" />
+      <entry key="S30" value="0.0" />
+      <entry key="S60" value="0.0" />
+      <entry key="M2" value="1.3667197675693627E-265" />
+      <entry key="M5" value="1.7165667294799541E-106" />
+      <entry key="M10" value="1.8527086302825656E-53" />
+      <entry key="M15" value="8.821442087382771E-36" />
+      <entry key="M30" value="4.200302261974406E-18" />
+      <entry key="H1" value="2.8983725511770124E-9" />
+      <entry key="H2" value="7.613631207159241E-5" />
+      <entry key="H4" value="0.012339877536061224" />
+      <entry key="D1" value="0.8565317422020597" />
+      <entry key="W1" value="1.7718119787273159" />
     </decayedSelected>
     <decayedShown>
-      <entry key="MS100" value="0.002489376225232933" />
-      <entry key="MS500" value="0.30145195692269694" />
-      <entry key="S2" value="0.7415698205824723" />
-      <entry key="S5" value="0.9996716917658535" />
-      <entry key="S10" value="1.608040682881761" />
-      <entry key="S30" value="3.177241863243165" />
-      <entry key="S60" value="3.953893126744002" />
-      <entry key="M2" value="4.437989317427568" />
-      <entry key="M5" value="4.765074616630353" />
-      <entry key="M10" value="4.8807816901383525" />
-      <entry key="M15" value="4.92012572633761" />
-      <entry key="M30" value="4.959863830455689" />
-      <entry key="H1" value="4.979881905618303" />
-      <entry key="H2" value="4.989928418838212" />
-      <entry key="H4" value="4.994961071971541" />
-      <entry key="D1" value="4.999159742569238" />
-      <entry key="W1" value="4.999879952539971" />
+      <entry key="MS100" value="0.9331533816655392" />
+      <entry key="MS500" value="1.1638717537721168" />
+      <entry key="S2" value="1.9720602448624593" />
+      <entry key="S5" value="2.481980755713916" />
+      <entry key="S10" value="2.7183128513125916" />
+      <entry key="S30" value="2.9004980375537737" />
+      <entry key="S60" value="2.9495093552654605" />
+      <entry key="M2" value="2.9745667050798446" />
+      <entry key="M5" value="2.989781171236011" />
+      <entry key="M10" value="2.9948829671112587" />
+      <entry key="M15" value="2.996586949257893" />
+      <entry key="M30" value="2.9982926262662155" />
+      <entry key="H1" value="2.9991461170450684" />
+      <entry key="H2" value="2.9999940726734806" />
+      <entry key="H4" value="3.067843686025217" />
+      <entry key="D1" value="7.713056820898666" />
+      <entry key="W1" value="12.74560113518987" />
     </decayedShown>
   </component>
   <component name="PhpWorkspaceProjectConfiguration" interpreter_name="/opt/homebrew/bin/php" />
@@ -175,5 +154,9 @@
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="feat: initialize application" />
+    <option name="LAST_COMMIT_MESSAGE" value="feat: initialize application" />
   </component>
 </project>
