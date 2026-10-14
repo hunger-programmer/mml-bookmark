@@ -1,16 +1,92 @@
-<!-- BEGIN:nextjs-agent-rules -->
+## Next.js version
 
-## This is NOT the Next.js you know
-
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
-
-This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
-
-<!-- END:nextjs-agent-rules -->
+The app runs on Next.js 16 with breaking changes compared to older versions — APIs, conventions and file structure may differ from your training data. Before writing Next.js code, read the relevant guide in `packages/app/node_modules/next/dist/docs/` and heed deprecation notices. `next dev` maintains its own managed block in `packages/app/AGENTS.md`; commit it when it changes.
 
 ## Project: mml-bookmark
 
-A link/bookmark storage app built on Next.js.
+A link/bookmark storage app: save links, group them, connect them to other tools.
+
+## Stack
+
+These are fixed decisions. Do not swap a library or add an alternative to one of them without the user's approval.
+
+| Concern | Choice |
+|---|---|
+| Language | TypeScript (strict), pinned to 6.0.x — typescript-eslint does not support TS 7 yet |
+| Framework | Next.js 16 (App Router), React 19 |
+| Database | PostgreSQL 17 |
+| ORM | MikroORM 7 (`@mikro-orm/postgresql`), migrations via `@mikro-orm/migrations`, connection pool configured from env |
+| Dependency injection | Awilix |
+| Styling, public pages | Tailwind CSS 4 |
+| Styling, admin ("backend") pages | shadcn/ui (Base UI primitives, `base-nova` style) on Tailwind 4 |
+| Package manager | pnpm workspaces (version pinned in root `packageManager`) |
+| Runtime | Node.js >= 22.17 |
+
+## Monorepo layout
+
+```
+packages/
+├── app/   @mml-bookmark/app   Next.js application: routes, pages, server actions, composition root
+├── core/  @mml-bookmark/core  Reusable, framework-agnostic code: DI container helpers, shared types, domain services
+├── db/    @mml-bookmark/db    Data layer: MikroORM config, entities, repositories, migrations, ORM bootstrap
+└── ui/    @mml-bookmark/ui    Reusable UI components (shadcn/ui), `cn` helper, admin theme CSS
+```
+
+`packages/` is the only place for code. New sub-packages go there, named `@mml-bookmark/<name>`, and are added to this table and to the README.
+
+### Package rules
+
+1. **Dependency direction:** `app → ui, db, core`; `db → core`; `core` and `ui` depend on no internal package. Never import "upwards" (e.g. `core` importing `db`, anything importing `app`).
+2. **Source-only packages.** Internal packages have no build step; their `exports` point at `src/*.ts(x)`. Turbopack transpiles workspace packages itself, so no `transpilePackages` entry is needed. Server-only third-party packages that must not be bundled go in `serverExternalPackages` in `packages/app/next.config.ts`.
+3. **Import through `exports` only** (`@mml-bookmark/db`, `@mml-bookmark/ui/components/button`). No relative imports across package boundaries, no deep imports into another package's `src/`.
+4. **`core` stays framework-agnostic:** no React, no Next.js, no database driver imports.
+5. **`ui` is presentational:** no data fetching, no DI container, no `db` imports.
+6. **Shared dependencies keep one version.** `react`/`react-dom` are peer dependencies of library packages. Dev tooling (TypeScript, ESLint) lives in the root `package.json`.
+
+## Styling
+
+- **Public pages** live in `packages/app/src/app/(site)/` and use plain Tailwind utility classes. Their CSS entry is `(site)/globals.css`. Do not import `@mml-bookmark/ui` components there.
+- **Admin ("backend") pages** live in `packages/app/src/app/(admin)/admin/` and are built from shadcn/ui components in `@mml-bookmark/ui`. Their CSS entry is `@mml-bookmark/ui/globals.css`.
+- `(site)` and `(admin)` are separate root layouts, so the two themes never mix. Moving between them is a full page load; that is intended.
+- Add shadcn components to the ui package, never to the app: `pnpm --filter @mml-bookmark/ui dlx shadcn@latest add <component>`. Do not hand-edit generated components unless the change is deliberate and noted in the run log.
+- Merge class names with `cn` from `@mml-bookmark/ui/lib/utils`.
+
+## Database (MikroORM + PostgreSQL)
+
+- **Entities** live in `packages/db/src/entities/`, defined with `defineEntity` (no decorators, no `reflect-metadata`). Export each one from `packages/db/src/entities/index.ts`; the ORM config registers that list explicitly (no folder discovery).
+- **Schema changes go through migrations only.** Change the entity, then `pnpm db:migration:create`, review the generated SQL, commit it with the entity change. Never use `schema:update`/`schema:fresh` against a shared or production database. Never edit a migration that has been merged; add a new one.
+- **Connection pool** is configured in `packages/db/src/config.ts` from `DB_POOL_MIN` / `DB_POOL_MAX`. Do not create extra `MikroORM` instances; use `getOrm()` from `@mml-bookmark/db`, which caches one connected instance per process (it survives Next.js HMR). MikroORM 7's `init()` does not connect by itself; `getOrm()` calls `connect()`.
+- **One `EntityManager` fork per request.** Never use the global `orm.em` in request code. Resolve `em` from a request-scoped container (see DI) or call `orm.em.fork()` yourself in scripts.
+- Database access is server-only. Never import `@mml-bookmark/db` from a Client Component.
+- **Server Components that query the database** must `await connection()` (from `next/server`) before the query and render inside `<Suspense>`. With `cacheComponents` enabled, Next.js cannot see DB calls and would otherwise try to prerender them. Use `"use cache"` only for data that is safe to share across requests.
+- Configuration comes from env vars (`DATABASE_URL`, `DB_POOL_MIN`, `DB_POOL_MAX`, `DB_DEBUG`) in one `.env` at the repo root; see `.env.example`. `next.config.ts` and the MikroORM CLI config both load it explicitly (Next.js alone only reads `packages/app/.env`). Never commit `.env` or real credentials.
+
+## Dependency injection (Awilix)
+
+- The container is created with `createAppContainer()` from `@mml-bookmark/core` (PROXY injection, strict mode). Dependencies are injected as a single cradle object: `constructor({ em, bookmarkRepository }: Cradle)`.
+- **Composition root:** `packages/app/src/server/container.ts` is the only place that registers things in the root container. Packages expose `register*` helpers (e.g. `registerDb` in `@mml-bookmark/db`); the composition root calls them.
+- **Lifetimes:** stateless services and the ORM are singletons; anything holding the request `EntityManager` is scoped. Strict mode rejects a singleton that depends on a scoped registration; fix the lifetime, do not turn strict mode off.
+- **Per-request scope:** server code (pages, route handlers, server actions) calls `getRequestScope()` from `@/server/container` and resolves from its `cradle`. It is wrapped in React `cache()`, so all Server Components of one request share one scope and one `em`. Do not pass the container into components or `ui`.
+- Type registrations by augmenting the `Cradle` interface (`declare module "@mml-bookmark/core" { interface Cradle { ... } }`) next to the `register*` helper that adds them.
+- The container is server-only; the composition root imports `server-only`.
+
+## Commands
+
+Run from the repo root.
+
+| Command | What it does |
+|---|---|
+| `pnpm install` | Install all workspace dependencies |
+| `docker compose up -d` | Start local PostgreSQL |
+| `pnpm dev` | Next.js dev server (`packages/app`) |
+| `pnpm build` / `pnpm start` | Production build / server |
+| `pnpm typecheck` | `tsc --noEmit` in every package (app runs `next typegen` first) |
+| `pnpm lint` | ESLint in every package |
+| `pnpm db:migration:create` | Generate a migration from entity changes |
+| `pnpm db:migration:up` / `db:migration:down` | Apply / revert migrations |
+| `pnpm db:migration:list` | List applied migrations |
+
+Before calling a task done: `pnpm typecheck && pnpm lint && pnpm build` must pass.
 
 ## `.ai/` — mandatory metadata structure
 

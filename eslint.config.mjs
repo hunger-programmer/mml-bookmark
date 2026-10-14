@@ -1,18 +1,14 @@
 import { defineConfig, globalIgnores } from "eslint/config";
-import nextVitals from "eslint-config-next/core-web-vitals";
-import nextTs from "eslint-config-next/typescript";
+import tseslint from "typescript-eslint";
+import reactHooks from "eslint-plugin-react-hooks";
 
-const eslintConfig = defineConfig([
-  ...nextVitals,
-  ...nextTs,
-  // Override default ignores of eslint-config-next.
-  globalIgnores([
-    // Default ignores of eslint-config-next:
-    ".next/**",
-    "out/**",
-    "build/**",
-    "next-env.d.ts",
-  ]),
+// Shared config for library packages (core, db, ui).
+// packages/app has its own config built on eslint-config-next.
+export default defineConfig([
+  globalIgnores(["**/node_modules/**", "**/dist/**", "packages/app/**"]),
+  ...tseslint.configs.recommended,
+  {
+    files: ["packages/ui/**/*.{ts,tsx}"],
+    extends: [reactHooks.configs.flat.recommended],
+  },
 ]);
-
-export default eslintConfig;

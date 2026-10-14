@@ -2,25 +2,26 @@
   "name": "mml-bookmark",
   "version": "0.1.0",
   "private": true,
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
+  "packageManager": "pnpm@12.11.2",
+  "engines": {
+    "node": ">=22.17.0"
   },
-  "dependencies": {
-    "next": "16.4.0",
-    "react": "19.3.0",
-    "react-dom": "19.3.0"
+  "scripts": {
+    "dev": "pnpm --filter @mml-bookmark/app dev",
+    "build": "pnpm --filter @mml-bookmark/app build",
+    "start": "pnpm --filter @mml-bookmark/app start",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "db:migration:create": "pnpm --filter @mml-bookmark/db migration:create",
+    "db:migration:up": "pnpm --filter @mml-bookmark/db migration:up",
+    "db:migration:down": "pnpm --filter @mml-bookmark/db migration:down",
+    "db:migration:list": "pnpm --filter @mml-bookmark/db migration:list"
   },
   "devDependencies": {
-    "@tailwindcss/turbopack": "^4",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "16.4.0",
-    "tailwindcss": "^4",
-    "typescript": "^5"
+    "@types/node": "^24.19.2",
+    "eslint": "^9.39.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.71.2"
   }
 }
