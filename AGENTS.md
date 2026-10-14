@@ -118,11 +118,16 @@ All AI-related project metadata lives in `.ai/`. Agents MUST follow this structu
 ├── runs/                   # Logs of autonomous AI runs
 │   └── YYYY-MM-DD-slug.md
 ├── lessons.md              # Index of lessons learned (one line each)
-└── lessons/                # Detailed lessons
-    └── YYYY-MM-DD-slug.md
+├── lessons/                # Detailed lessons
+│   └── YYYY-MM-DD-slug.md
+├── docs/                   # Long-lived project docs (engineering-standards.md)
+└── mockups/                # Product concept: docs/ (users, flows, screens, API) + clickable HTML/TS mockup
+    └── funtionality/       # (sic) open mockups/index.html; bookmark-portal-concept.zip is the same content
 ```
 
-Each folder has a `README.md` with its template. `.ai/cezar/` and `.ai/mcp/` belong to external tooling — do not edit them.
+Each of `specs/`, `runs/` and `lessons/` has a `README.md` with its template. `docs/` and `mockups/` are not dated: update them in place.
+
+Product source of truth: the concept in `.ai/mockups/funtionality/docs/` (screen specs and the `/api/v1` endpoint catalogue) and `.ai/docs/engineering-standards.md` (naming, security, review checklist). Open decisions there that need the user's approval before building (section 6): `(app)` route group for the product UI, validation library (Zod proposed), auth mechanism, test runner. `.ai/cezar/` and `.ai/mcp/` belong to external tooling — do not edit them.
 
 ### Naming
 
