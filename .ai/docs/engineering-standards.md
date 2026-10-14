@@ -1,575 +1,355 @@
-# DevMentor — Engineering Standards & Package Structure
+# mml-bookmark — Engineering Standards & Package Structure
 
 Date: 2026-10-14
-Status: active
+Status: proposed (supersedes the earlier template that described a different product, a mentor-booking marketplace)
 
-Grounded in the actual bootstrap  and the target
-product scope (`devmentor-training-pack-first-idea`: ~9 domain concepts — auth,
-mentors, availability, bookings, payments, messages, favorites, reviews — across a
-marketplace booking flow). Decisions below were confirmed with the project owner:
-**domain sub-folders inside the existing layered packages** (not a module runtime),
-**keep `awilix` DI** (reconcile `product-scope.md`'s "no DI container" line with it).
+Grounded in three sources, in this order of authority:
+
+1. `AGENTS.md` — fixed stack and package rules. Where this document seems to disagree, `AGENTS.md` wins.
+2. The bookmark-portal concept in `.ai/mockups/funtionality/` — 18 screens, 16 use cases, one REST surface (`docs/04-screen-specifications.md` is the API source of truth).
+3. The code that exists today (`packages/{app,core,db,ui}`, Awilix container, MikroORM bootstrap, shadcn `button`).
+
+Decisions already taken: **domain sub-folders inside the existing layered packages** (no module runtime), **keep Awilix**, **no new package** until a second consumer needs one.
 
 ---
 
-## 1. Final List of Engineering Rules
+## 1. Rules
+
+### Domain concepts
+
+The product has seven concepts. Each one is a same-named folder repeated in the layers that need it.
+
+| Concept | Owns | Screens |
+|---|---|---|
+| `auth` | users, sessions, capture tokens | S1, S2, S13, S15 |
+| `bookmarks` | bookmark, status, trash, duplicate check, bulk actions | S3, S4, S5, S7, S14 |
+| `collections` | tree, sharing, public slug | S8, S9, S10 |
+| `tags` | tag list, autocomplete | S3, S7 |
+| `enrichment` | page fetch, AI classification, suggestions, quota, job state | S5, S15 (AI), S17 |
+| `search` | full-text query, suggestions | S6 |
+| `transfer` | import, export | S12 |
+
+`admin` is not a concept: it is a route group (S16–S18) that calls the same services.
 
 ### Naming
 
 | Element | Convention | Example |
 |---|---|---|
-| Package | `packages/<name>`, scoped `@devmentor/<name>` | `@devmentor/core` |
-| Domain concept folder | plural, kebab/snake-free single word, matches the event namespace | `bookings`, `payments`, `mentors` |
-| Entity | PascalCase singular class via `defineEntity`, file `<name>.entity.ts` inside its concept folder | `Booking` → `entities/bookings/booking.entity.ts` |
-| DB table | snake_case, plural | `bookings` |
-| DB column | snake_case (mapped from camelCase property) | `created_at` ← `createdAt` |
-| Service | PascalCase class + `Service` suffix, file `<name>.service.ts` inside its concept folder | `BookingService` → `services/bookings/booking.service.ts` |
-| Port (external integration interface) | PascalCase + `Gateway`/`Port` suffix, file `<name>.port.ts` | `PaymentGateway` → `services/payments/payment-gateway.port.ts` |
-| Adapter (port implementation) | PascalCase + adapter name, under `adapters/` | `MockPaymentGateway` → `services/payments/adapters/mock-payment-gateway.ts` |
-| DI cradle key | camelCase, one entry per dependency | `bookingService: BookingService` |
-| Zod schema | camelCase variable + `Schema` suffix, file `<name>.schema.ts`, shared client/server | `bookingCreateSchema` → `validators/bookings/booking-create.schema.ts` |
-| Event ID | `concept.entity.action`, past tense, dot-separated | `bookings.booking.created` |
-| API route | one `route.ts` per resource under `api/<concept>/...` | `api/bookings/route.ts`, `api/bookings/[id]/reschedule/route.ts` |
-| Page | `<segment>/page.tsx`, default export `<Segment>Page` | `sessions/page.tsx` → `SessionsPage` |
-| UI component | PascalCase; shadcn primitives in `components/ui/`, concept-specific shared components in `components/<concept>/`, generic panel primitives in `backend/<category>/` | `MentorCard`, `CrudForm` |
-| Domain error | PascalCase + `Error` suffix, extends `AppError`, file in `core/src/http/errors.ts` | `NotFoundError`, `ValidationError` |
-| API route handler builder | `makeCrudRoute` (straightforward CRUD) or `apiHandler` (custom workflow), both from `core/src/http` | `export const { GET, POST } = makeCrudRoute({ ... })` |
-| Client fetch helper | `apiCall`/`apiCallOrThrow` from `ui/src/backend/api`, never raw `fetch` | `const res = await apiCall<Booking[]>('/api/bookings')` |
+| Package | `packages/<name>`, `@mml-bookmark/<name>` | `@mml-bookmark/core` |
+| Concept folder | lowercase plural noun, same name in every layer | `bookmarks`, `collections` |
+| Entity | PascalCase singular, `defineEntity`, file `<name>.entity.ts` | `Bookmark` → `db/src/entities/bookmarks/bookmark.entity.ts` |
+| DB table / column | snake_case, plural table; camelCase property maps to snake_case column | `bookmarks.collection_id` |
+| Repository implementation | `<Name>Repository`, file `<name>.repository.ts`, in `db` | `db/src/repositories/bookmarks/bookmark.repository.ts` |
+| Repository port | interface `<Name>Repository`, file `<name>-repository.port.ts`, in `core` | `core/src/services/bookmarks/bookmark-repository.port.ts` |
+| Service | PascalCase + `Service`, file `<name>.service.ts` | `BookmarkService` |
+| External port | PascalCase noun, `.port.ts` | `PageFetcher`, `EnrichmentProvider` |
+| Adapter | under `adapters/` next to its port | `adapters/mock-enrichment-provider.ts` |
+| DI cradle key | camelCase of the class | `bookmarkService`, `bookmarkRepository` |
+| Validation schema | camelCase + `Schema`, file `<name>-<action>.schema.ts`, shared by client and server | `bookmarkCreateSchema` |
+| Event ID | `concept.entity.action`, past tense | `bookmarks.bookmark.created`, `enrichment.job.failed` |
+| API route | `app/api/v1/<concept>/.../route.ts`, URLs as in doc 04 | `api/v1/bookmarks/[id]/enrich/route.ts` |
+| Page | `page.tsx`, default export `<Segment>Page` | `inbox/page.tsx` → `InboxPage` |
+| Domain error | PascalCase + `Error`, extends `AppError` | `DuplicateBookmarkError` |
+| Migration | generated by `pnpm db:migration:create`, never renamed | – |
 
-### Reusable API & UI Layer (no duplicated fetch / validation / auth / CRUD code)
+### Dependency direction (from AGENTS.md, restated because most mistakes happen here)
 
-The single biggest risk of adding ~9 concepts one at a time is that every route and
-every page re-invents fetch/validation/auth/error-handling slightly differently. Two
-shared layers exist specifically to prevent that — **build a new one only when a
-genuinely new pattern appears, never re-implement an existing one inline:**
+```
+app ──► ui
+app ──► db ──► core
+app ──► core
+```
 
-**Server side — `packages/core/src/http/`:**
+- `core` and `ui` import no internal package. `core` has no React, Next.js or DB driver. `ui` has no data fetching, DI container or `db` import.
+- Only `db` imports `@mikro-orm/*`.
+- Consequence for services: `core` cannot import `db`, so a service in `core` depends on a **repository port** declared in `core`, and `db` implements it. Awilix wires them in `app/src/server/container.ts`. This is the same inversion used for external vendors.
+- Imports go through package `exports` only. Each concept area that other packages need gets a subpath export (`@mml-bookmark/core/http`, `@mml-bookmark/core/events`, `@mml-bookmark/core/bookmarks`), added when the first file lands in it.
 
-- `errors.ts` — a small typed error hierarchy (`AppError` base;
-  `NotFoundError`, `ForbiddenError`, `UnauthorizedError`, `ValidationError`,
-  `ConflictError`). Services throw these; nothing else. A service never builds an
-  HTTP response.
-- `apiHandler.ts` — wraps a route function: catches thrown `AppError`s and maps them
-  to the right status code and a consistent JSON envelope
-  (`{ ok: true, data }` / `{ ok: false, error: { code, message, fieldErrors? } }`),
-  logs unexpected (non-`AppError`) failures via the shared logger, and never leaks a
-  raw stack trace to the client. Every route handler is wrapped in this — no route
-  writes its own `try/catch`.
-- `makeCrudRoute.ts` — for a resource that is genuinely just list/create/update/delete
-  (e.g. `favorites`, `technologies`), pass Zod schemas + service method references and
-  get back `{ GET, POST, PUT, DELETE }` to re-export from `route.ts`. The route file
-  becomes configuration, not logic. Workflow endpoints that don't fit CRUD (booking,
-  reschedule, payment) use `apiHandler` directly and call one or more service methods
-  inside — they don't force-fit `makeCrudRoute`.
-- `auth.ts` — `requireSession(req)` (throws `UnauthorizedError`), `requireRole(session,
-  role)` and ownership assertions (e.g. `assertOwnsBooking`) (throw `ForbiddenError`).
-  Every route that isn't public calls one of these first, before touching a service.
+### Reusable layers (build once, reuse everywhere)
 
-**Client side — `packages/ui/src/backend/`:**
+Without these, every one of the ~40 endpoints and 18 screens re-invents fetch, validation, auth and error handling.
 
-- `api/apiCall.ts` — the only place a `fetch()` call to `/api/*` is allowed. Parses
-  the JSON envelope above defensively (`readJsonSafe`, never `.json().catch(...)`),
-  returns a typed `ApiResult<T>`, and `apiCallOrThrow` for call sites that want to
-  throw instead of branching on `ok`. No component calls `fetch` directly.
-- `forms/CrudForm.tsx` — schema-driven form: takes the same Zod schema used server
-  side, renders fields, shows server-returned `fieldErrors` next to the right field,
-  handles submit/cancel/loading state, and standardizes `Cmd/Ctrl+Enter` to submit and
-  `Escape` to cancel. Use it for every create/edit form; write a bespoke form only
-  when the UX genuinely isn't a form-over-schema (e.g. the calendar slot picker).
-- `tables/DataTable.tsx` — column-config-driven list rendering with built-in
-  loading/empty/error states, pagination, and row actions. Use it for every list
-  screen (search results, sessions, students, reviews) instead of hand-rolling a
-  `<table>`/`.map()` per page.
-- `feedback/{LoadingMessage,ErrorMessage,EmptyState}.tsx` — the only sanctioned
-  loading/error/empty renderers; a page composes these instead of writing its own
-  spinner/error text.
+**Server — `packages/core/src/http/`** (framework-agnostic: uses Web `Request`/`Response`, never `NextResponse`)
 
-Note: the JSON envelope is a **shape convention**, not a shared TypeScript type —
-`core/src/http` and `ui/src/backend/api` each declare their own `ApiResult`-shaped
-type, because `ui` must not import `core` (see dependency direction below). If that
-duplication ever becomes painful enough to matter, introduce a fifth
-`packages/shared` package for it — that is an **Ask First** architecture change, not
-something to add preemptively while there are only two consumers.
+- `errors.ts` — `AppError` base and `NotFoundError`, `ForbiddenError`, `UnauthorizedError`, `ValidationError`, `ConflictError`, `RateLimitedError`, each with a stable `code`. Services throw these and never build a response.
+- `api-handler.ts` — wraps a route function: parses/validates, maps `AppError` to status plus the error body, logs anything else and returns a generic 500 with no stack.
+- `auth.ts` — `requireSession(request)`, `requireToken(request, scope)` and ownership assertions (`assertOwnsBookmark`). They depend on a `SessionReader` port that `app` implements, because the auth mechanism is not chosen yet.
+- `makeCrudRoute` is **not built now**. Introduce it when the second plain CRUD resource (collections, tokens) is implemented and the duplication is visible.
 
-**Where a new reusable component goes** (so this stays a place things arrive at, not
-a dumping ground):
+**Wire format** (source of truth: doc 04 "API conventions")
 
-1. A raw shadcn primitive (no app logic) → `ui/src/components/ui/`, added only via
-   `npx shadcn@latest add <name>` — never hand-written.
-2. A generic, concept-agnostic panel-building pattern used across concepts (a new
-   kind of form field, a new table cell renderer, a new feedback state) →
-   `ui/src/backend/<category>/`.
-3. A component tied to one concept's domain shape (renders a `Booking`, a
-   `MentorProfile`, a `Review`) → `ui/src/components/<concept>/`, named after the same
-   concept folder used in `db`/`core` (e.g. `components/mentors/MentorCard.tsx`).
-4. A component used by exactly one page → colocate it next to that `page.tsx`; only
-   promote it into `components/<concept>/` the moment a second page needs it.
+- Success: the resource or `{ items, nextCursor }` as the body, HTTP 2xx.
+- Error: `{ "error": { "code", "message", "fields"? } }`, HTTP 4xx/5xx.
+
+**App — `packages/app/src/lib/api-client.ts`**: the only place that calls `fetch('/api/…')` from the browser. Returns a typed result, adds the CSRF header, parses defensively. It lives in `app`, not `ui`, because `ui` must not fetch.
+
+**UI — `packages/ui/src/`** (presentational: everything arrives through props)
+
+- `components/<shadcn-primitive>.tsx` — added only with `pnpm --filter @mml-bookmark/ui dlx shadcn@latest add`.
+- `components/feedback/{loading-state,error-state,empty-state}.tsx` — the only loading/error/empty renderers; they match the four states every screen in doc 04 specifies.
+- `components/data-table.tsx`, `components/crud-form.tsx` — generic. `CrudForm` takes a `validate(values) => fieldErrors` callback, not a schema, so `ui` stays independent of `core`; `app` adapts the shared schema.
+- `components/<concept>/` — a component tied to one concept's shape (`bookmarks/bookmark-card.tsx`, `bookmarks/ai-badge.tsx`). These receive plain props, not entities.
+- Used by exactly one page → colocate next to its `page.tsx`; promote on the second consumer.
+
+**Which styling system:** S1, S10, S11 are public pages (`(site)`, Tailwind). S16–S18 are admin (`(admin)`, shadcn). The product app S2–S9, S12–S15 is neither today. Proposal: a third route group `(app)` using shadcn and the `ui` theme, so product and admin share components. **Needs your approval** (see section 6) because it extends AGENTS.md.
 
 ### Architecture
 
-- Keep the enforced dependency direction `app → core → db`, `ui` importable by `app`
-  only (ESLint `no-restricted-imports`). This boundary is doing real work and should
-  not be loosened for convenience.
-- A concept folder is created **only when its first entity/service is added** — do
-  not pre-scaffold empty folders for concepts not yet implemented.
-- External integrations (payment, and later notifications/video) are accessed through
-  a **port interface in `core`**, with a mock/in-memory adapter for MVP and a real
-  adapter (Stripe, etc.) added later without touching callers — this is required by
-  UC04/UC06's "Stripe adapter" stretch goal and keeps `db`/`core` free of vendor SDKs.
-- Domain events use a **lightweight typed emitter in `core/src/events`**, registered
-  as a singleton in the `Cradle` — not a queue. Background workers/queues are
-  explicitly out of scope for MVP; events are for in-process side effects (logging,
-  triggering a message, cache invalidation) only.
-- Shared Zod schemas live in `core/src/validators/<concept>/`, imported by both the
-  API route (server validation) and the form component (client validation) — one
-  schema, two call sites, never redefined.
-- DB access stays confined to `export const dynamic = "force-dynamic"` routes/pages;
-  the app must build and boot with no database reachable.
-- Booking/payment flows that mutate shared state (slot availability) go through a DB
-  transaction in the service layer — never split a check-then-write across two
-  round-trips without a transaction.
+- A concept folder is created only when its first file is added. No empty scaffolding.
+- **External services behind ports in `core`:** `PageFetcher` (HTTP fetch of the saved page), `EnrichmentProvider` (the LLM). The MVP ships a deterministic mock adapter so the app builds and tests run without a key; real adapters are added later without touching callers. No vendor SDK in `core` or `db`.
+- **Enrichment is asynchronous by design** (doc 02, UC2: save returns at once, enrichment follows). Mechanism: an `enrichment_jobs` table in PostgreSQL plus a processor invoked from `after()` (`next/server`) and a retry sweep endpoint. No external queue or worker process in the MVP. Job states match the mockup: `pending → fetching → analysing → ready | failed | pending_quota`. A failed job never deletes or hides the bookmark.
+- **Events:** a small typed in-process emitter in `core/src/events`, registered on the `Cradle`. Used for side effects only (enqueue enrichment on `bookmarks.bookmark.created`, webhook later). Not a queue.
+- **Validation:** shared schemas in `core/src/validators/<concept>/`, imported by the route handler and the form. One schema, two call sites. The library is not fixed by the stack table; Zod is proposed (section 6).
+- **Database access:** every Server Component that queries calls `await connection()` and renders inside `<Suspense>`, as AGENTS.md requires. The app must build with no database reachable.
+- **Per-request scope:** routes and pages resolve services from `getRequestScope()`; no global `orm.em`.
+- **Transactions:** check-then-write on shared state runs inside one transaction in the service layer. Concretely: duplicate detection on save, collection move/delete, and accepting a suggestion.
+- **Uniqueness lives in the database:** `unique (user_id, normalized_url)` for non-trashed bookmarks, `unique` public slug, `unique (user_id, parent_id, lower(name))` for collections. An application-level check alone is not enough.
+- **Soft delete:** bookmarks use `trashed_at`; every list query filters it. Purge after 30 days is a sweep, not a trigger.
+- **Search (MVP):** PostgreSQL full-text (`tsvector` generated column plus GIN index) over title, url, summary, note and tags. Semantic search (pgvector) is phase 2 and needs approval.
 
-### Engineering Principles (the ones that actually earn their keep here)
+### Engineering principles
 
-These are not abstract OOP trivia — each one maps to a real decision already made in
-this codebase or in the structure proposed above. When two principles pull in
-different directions, prefer the one that keeps the change **smaller and more
-explicit**, not the one that looks more "enterprise."
+When two pull in different directions, choose the one that keeps the change smaller and more explicit.
 
-- **SRP — one file, one reason to change.** An entity file owns schema/columns only;
-  a service file owns one concept's business rules; a route file owns HTTP
-  wiring only (validation → auth → service call → envelope). Example: `booking.service.ts`
-  decides whether a slot is bookable; it never builds a `NextResponse`, and
-  `api/bookings/route.ts` never contains a slot-availability check inline.
-- **DRY — one definition, every call site imports it.** A Zod schema is written once
-  in `core/src/validators/<concept>/` and imported by both the route handler and the
-  `CrudForm`; the fetch/error-envelope logic is written once in `apiCall`/`apiHandler`,
-  never re-typed per route or per page. If you're about to copy a `try/catch` or a
-  validation block, stop and extract it instead.
-- **Separation of Concerns — layers don't leak.** Persistence stays in `db`, business
-  rules stay in `core`, HTTP/rendering stays in `app`, presentation stays in `ui`.
-  `core` never imports `next`/`react` (already true and enforced by ESLint); a page
-  component never issues a raw MikroORM query.
-- **Dependency Inversion — depend on a port, not a vendor SDK.** `BookingService`
-  depends on the `PaymentGateway` interface, not on the Stripe SDK. The MVP's
-  `MockPaymentGateway` and a later `StripePaymentGateway` are interchangeable because
-  callers only ever see the port. This is also why `db` is the only package allowed to
-  import `@mikro-orm/*` — nothing else should be coupled to the specific ORM.
-  `awilix` is the mechanism that wires the chosen adapter in at startup.
-- **Explicit over implicit.** `container.ts` registers every dependency by hand — no
-  `loadModules` globbing — specifically so every binding is greppable. Keep this
-  discipline as services grow to ~9: a new service is a new explicit line in
-  `container.ts` and `cradle.ts`, never auto-discovered from a folder scan.
-- **Convention over configuration, scoped narrowly.** The `<concept>/` folder
-  convention (Section 2) replaces what a module system would otherwise need a config
-  file to declare. It only works because it's applied consistently — a concept that
-  doesn't follow the folder convention breaks the convention for everyone reading the
-  code afterward.
-- **YAGNI — no speculative structure.** Don't create `messages/` before there's a
-  `Message` entity to put in it; don't add a generic plugin/module loader because
-  Open Mercato has one — this product's scope document explicitly excludes that. The
-  four-package boundary plus concept folders is exactly as much structure as ~9
-  concepts need, not more.
-- **Composition over inheritance.** Prefer small functions/services composed together
-  over class hierarchies. A `BookingService` composes a `SlotService` and a
-  `PaymentGateway` port rather than a base `Service` class with template methods.
-- **Fail closed, not open.** Any error inside an authorization or ownership check
-  results in denial, never in falling through to "allow." A booking action with an
-  ambiguous ownership result is a 403, not a best-effort 200.
-- **Idempotency where retries can happen.** Payment confirmation and webhook-driven
-  state transitions (UC04: "transitions booking to `confirmed` **exactly once**") must
-  tolerate being invoked twice without double-charging or double-booking — this is
-  the concrete reason the booking flow needs a DB transaction and a unique constraint
-  on the slot, not just an application-level check.
+- **SRP.** Entity = columns. Repository = queries. Service = business rules. Route = HTTP only (validate → auth → service → body). `BookmarkService` decides whether a URL is a duplicate; it never builds a `Response`, and the route never contains that check.
+- **DRY.** One schema, one error mapper, one fetch wrapper. About to copy a `try/catch` or validation block? Extract it.
+- **Separation of concerns.** Persistence in `db`, rules in `core`, HTTP and rendering in `app`, presentation in `ui`. A page never issues an ORM query itself; it asks a service.
+- **Dependency inversion.** Services depend on ports (`BookmarkRepository`, `PageFetcher`, `EnrichmentProvider`). Awilix binds the implementation at startup.
+- **Explicit over implicit.** Register every dependency by hand in `container.ts` (no `loadModules`). A new service is one greppable line plus one `Cradle` entry.
+- **YAGNI.** No queue, plugin loader, RBAC, multi-tenancy, webhooks or semantic search in the MVP. The mockup marks phase-2 items as "soon"; they stay out of the code.
+- **Composition over inheritance.** `BookmarkService` composes `BookmarkRepository` and the event emitter; no base `Service` class.
+- **Fail closed.** An error inside an authorization or ownership check is a denial.
+- **Idempotency.** Saving the same URL twice, retrying an enrichment job, and accepting a suggestion twice must each produce one result. This is why the unique constraints above exist.
+- **AI output is a proposal, not a command.** See security.
 
-### Security & Validation — Minimum Requirements
+### Security & validation
 
-- **Password hashing:** `bcrypt`/`bcryptjs`, cost factor **≥ 12** (OWASP's floor is
-  10; raise it since this is a small user base and the extra ~50ms per login is free).
-  If a faster/stronger option becomes desirable later, the documented upgrade path is
-  `argon2id` (memory ≥ 19 MiB, iterations ≥ 2, parallelism 1) — don't switch without a
-  reason, but don't invent a third option either.
-- **JWT:** signed with `HS256` minimum, using a secret ≥ 32 random bytes loaded from
-  `env.ts` (zod-validated) — never hardcoded, never committed. Short expiry (e.g. 24h);
-  there is no refresh-token flow in MVP scope — document that as a known limitation,
-  don't silently extend the token lifetime to compensate.
-- **Cookies:** `httpOnly`, `secure` in production, `sameSite=lax` (or `strict` for
-  auth-only routes), scoped `path`. Never put the JWT in `localStorage` or a
-  non-HttpOnly cookie.
-- **CSRF:** because auth relies on a cookie, every state-changing route needs a CSRF
-  defense — `sameSite` cookies plus a check that the request carries a custom header
-  (`apiCall` always sets one; a plain HTML form post won't) is the minimum bar.
-- **Rate limiting:** `login`, `register`, and any future password-reset endpoint need
-  a brute-force control — a simple per-IP+email attempt counter with a cooldown is
-  enough for MVP; note it explicitly as needing a stronger backend before real
-  production traffic.
-- **Ownership over role.** This product has no RBAC (explicitly out of scope), but
-  every mutation still needs an ownership check: a student can only reschedule/cancel
-  *their own* booking, a mentor can only edit *their own* profile/availability. Treat
-  a missing ownership check exactly like a missing auth check — both are blockers.
-- **Mass assignment:** a route never spreads the raw request body into `em.create()`;
-  it always goes through the Zod schema's parsed, explicitly-typed output, so a client
-  can't smuggle in fields like `id`, `status`, or `mentorId` on someone else's record.
-- **Injection:** all persistence goes through MikroORM's entity/query APIs — no raw
-  SQL string concatenation, no `Knex.raw` with interpolated user input.
-- **Money correctness:** booking price is always recomputed server-side from
-  `mentor.rate × duration`; a client-supplied price is parsed by the schema but never
-  trusted or persisted as-is (UC04's own acceptance criterion).
-- **Secrets & logging:** all secrets via env, validated by the zod env schema, `.env`
-  git-ignored; `pino` never logs passwords, tokens, or full JWTs — redact those fields
-  explicitly in the logger config.
-- **Auth error messages:** generic on login/register ("invalid credentials"), never
-  revealing whether a given email is registered.
-- **IDs:** UUID (already the `base.entity.ts` default) — avoids sequential-ID
-  enumeration of bookings/payments/messages across users.
-- **Dependency hygiene:** run `npm audit` as part of the validation gate; don't add a
-  dependency for something 20 lines of local code covers.
+- **Auth mechanism is undecided** (AGENTS.md lists no auth library). Whatever is chosen must meet: passwords hashed with argon2id (memory ≥ 19 MiB, iterations ≥ 2, parallelism 1) or bcrypt cost ≥ 12; session cookie `httpOnly`, `secure` in production, `sameSite=lax`; no token in `localStorage`.
+- **CSRF:** cookie-authenticated state-changing routes require a custom header that `api-client` always sends, plus `sameSite`. Bearer-token clients (extension) are exempt because no ambient credential is sent.
+- **Capture tokens (S13):** 32+ random bytes, shown once, stored only as a hash (SHA-256 is enough for high-entropy secrets), scoped (`save`, `read+save`), revocable, `last_used` updated, max 10 per user. Revocation takes effect on the next request.
+- **Ownership over role.** There is no RBAC for users: every query for a bookmark, collection or token is scoped by `user_id`. A missing ownership filter is a blocker, same as missing auth. Admin routes require an `isAdmin` flag checked server-side and write an audit entry for every mutation.
+- **SSRF guard (critical for this product).** The server fetches user-supplied URLs. `PageFetcher` must: allow `http`/`https` only; resolve DNS and reject loopback, link-local, private, and cloud-metadata addresses, re-checking after every redirect; cap redirects (5), response size (2 MB), and time (15 s); send no cookies or auth headers. The URL check in S4 is a UX hint, not the control.
+- **Untrusted page content going into an LLM.** Fetched text may contain instructions. The `EnrichmentProvider` receives it as data, its output is parsed against a strict schema (type enum, tags ≤ 20 × 40 chars, summary ≤ 1,000 chars, collection chosen only from the user's existing ids or a proposed new name), and the result is stored as a `suggestion`. Nothing the model returns triggers an action. Never put secrets or other users' data in the prompt.
+- **Rendering fetched content:** titles, summaries and notes are text. Escape them (React does by default); never `dangerouslySetInnerHTML`. Outbound links get `rel="noopener noreferrer"`. Only `http`/`https` URLs are ever rendered as `href`.
+- **Public share pages (S10, S11):** read-only endpoints, no session, rate-limited; slug is generated from ≥ 128 bits of randomness; a disabled and a nonexistent slug return the identical 404; private notes are excluded unless the owner enabled them; response never includes `user_id`.
+- **Mass assignment:** a route never spreads the request body into `em.create()`/`em.assign()`. It uses the parsed schema output.
+- **Injection:** only MikroORM query APIs; no string-built SQL. Full-text queries pass user input through `plainto_tsquery`/parameters.
+- **Rate limiting:** login, signup, magic link, password reset, public collection views, and bookmark creation per token. A per-IP+key counter is enough for the MVP; note it as needing a shared store before multi-instance deployment.
+- **Quota and cost control:** enrichment count per user per day enforced in `enrichment` before a provider call; exhausted quota sets `pending_quota`, not an error.
+- **Import limits:** 20 MB, 5,000 links, extensions allowlisted, parsed with a non-executing parser, each URL passes the same validation as S4.
+- **Secrets & logging:** env validated at startup; `.env` git-ignored; the logger redacts passwords, tokens, cookies and `Authorization`. Do not log page bodies or prompts.
+- **Auth messages:** generic on login and magic link; never reveal whether an email exists (S1 error copy already follows this).
+- **IDs:** UUID primary keys.
+- **Dependencies:** `pnpm audit` in the validation gate; no new dependency for what 20 lines cover.
 
-### Code Quality
+### Code quality
 
-- No `any`; narrow unknown types at runtime instead of disabling type-checking.
-- Self-documenting code; a comment only for a non-obvious *why*.
-- Three similar lines are fine; a copy-pasted block with branching logic is not —
-  extract it (see DRY above).
-- No feature you don't need yet (no RBAC, no multi-tenant, no queue) — the product
-  scope explicitly excludes these; don't smuggle them back in "for later" (see YAGNI
-  above).
-- Every function does one thing at one level of abstraction; flatten deep nesting
-  with early returns rather than nested `if`s.
-- Error and empty/null paths are handled where they occur, not woven through the
-  happy path — an early return beats a five-level-deep `if`.
-- No empty `catch` blocks — handle, log with context via the shared logger, or
-  rethrow; never swallow an error silently.
-- No magic numbers/strings — name the constant and, where the value isn't obvious
-  (a rate-limit window, a reschedule cutoff of 12 hours), say why that value.
-- Booleans read positively at the call site (`isConfirmed`, not `!isNotConfirmed`);
-  a bare `true`/`false` argument at a call site is replaced with a named option or a
-  separate function.
-- Dead code, commented-out code, and debug `console.log`s are removed before review,
-  not left "just in case."
-- A PR's diff traces entirely to its stated purpose — no drive-by renames, formatting
-  passes, or speculative options mixed into a behavioral change.
+- No `any`; narrow `unknown` at runtime.
+- Comment only a non-obvious why.
+- Early returns over nested `if`s. Error and empty paths handled where they occur.
+- No empty `catch`. Handle, log with context, or rethrow.
+- Name constants; say why when the value is not obvious (15 s fetch timeout, 30-day trash).
+- Booleans read positively. No bare `true`/`false` arguments; use an options object.
+- No dead code, commented-out code, or stray `console.log`.
+- A diff traces to its stated purpose: no drive-by renames or formatting passes.
+- Server Components that query the DB follow the `connection()` + `<Suspense>` rule; `"use cache"` only for data safe to share across requests.
 
-### Code Review Checklist
+### Review checklist
 
-#### Structure & conventions
+**Structure**
 
-- Concept folder naming matches the table above and the entity/service pairing exists
-  on both sides (no entity without a service, no service without its entity).
-- No import breaks the `app → core → db` direction or reaches into another concept's
-  internals instead of its public service method.
-- New routes use `makeCrudRoute`/`apiHandler` rather than a hand-rolled `try/catch`;
-  new forms use `CrudForm`; new lists use `DataTable` — a bespoke implementation of
-  any of these needs a stated reason in the PR description.
-- `npm run lint`, `npm run typecheck`, and relevant tests pass before requesting
-  review.
+- [ ] Concept folder names match the table; no entity without a service path and vice versa.
+- [ ] No import breaks the direction in section 1; no cross-package relative or deep import.
+- [ ] `core` has no `next`, `react`, or `@mikro-orm` import; `ui` has no fetch or `db` import.
+- [ ] Routes use `apiHandler`; client calls go through `api-client`; lists/forms use the shared components or give a reason.
+- [ ] `pnpm typecheck && pnpm lint && pnpm build` pass.
 
-**Security fundamentals** (adapted from Open Mercato's shared review checklist —
-kept to what actually applies to a project with no RBAC/multi-tenancy):
+**Security** (blocker unless stated)
 
-- [ ] Auth is enforced **server-side** on every route that isn't explicitly public —
-  "the button is hidden in the UI" is not enforcement. (blocker)
-- [ ] Authorization checks **the specific record**, not just "is logged in" — can this
-  student cancel *this* booking, can this mentor edit *this* profile (no insecure
-  direct object references). (blocker)
-- [ ] Any check-then-act sequence on a shared resource — slot availability, booking
-  status — is protected by a DB transaction and/or a unique constraint, not a
-  read-then-write with a race window. (blocker for bookings/payments)
-- [ ] No secret, token, password, or full JWT appears in a log line, error response,
-  or client-visible payload. (blocker)
-- [ ] No untrusted input reaches a query, shell command, or file path unparameterized
-  or uncanonicalized. (blocker)
-- [ ] A write endpoint parses an explicit Zod-typed shape — it never spreads the raw
-  request body into `em.create()`/`em.assign()` (no mass assignment). (blocker)
-- [ ] Cookie flags (`httpOnly`, `secure`, `sameSite`) are preserved whenever
-  auth-cookie code is touched. (major)
-- [ ] Error handling around a security decision fails **closed** (deny) on an
-  unexpected error, never open (allow). (blocker)
-- [ ] A bug fix for a security-relevant flow ships with a regression test that fails
-  without the fix. (major)
-- [ ] Rate limiting or another brute-force control is present on login/register/any
-  password-reset endpoint touched by the change. (major)
+- [ ] Auth enforced server-side on every non-public route.
+- [ ] Every record access is scoped by the owner; no insecure direct object reference.
+- [ ] Check-then-act on shared data is in a transaction and backed by a unique constraint.
+- [ ] Any code that fetches a user URL goes through `PageFetcher` and its SSRF guard.
+- [ ] LLM output is schema-validated and stored as a suggestion; it never triggers a side effect.
+- [ ] No secret, token, cookie, page body or prompt in logs, errors or client payloads.
+- [ ] Writes parse an explicit schema; no mass assignment.
+- [ ] Public endpoints leak nothing about private data or about whether a hidden slug existed.
+- [ ] Errors in security decisions deny. (blocker)
+- [ ] Cookie flags preserved when auth code is touched. (major)
+- [ ] Rate limit present on credential and public endpoints touched. (major)
+- [ ] A security bug fix ships a regression test that fails without it. (major)
 
-#### Correctness & tests
+**Correctness & tests**
 
-- Race-condition-sensitive flows (booking, reschedule) are covered by an integration
-  test that simulates the concurrent case, not just the happy path.
-- Server-side revalidation exists for anything client-supplied that affects money or
-  ownership (price, mentor ID, student ID).
-- A behavior change ships with a test that fails on the pre-change code; a bug fix
-  ships a regression test reproducing the original bug.
+- [ ] Duplicate save, concurrent accept, and retry-of-enrichment have tests for the repeated/concurrent case.
+- [ ] Every one of loading / empty / error / success is reachable for each new screen (doc 04).
+- [ ] A migration accompanies every entity change; no merged migration is edited.
+- [ ] Behavior changes ship with a test that fails on the old code.
 
 ---
 
-## 2. How to Place & Generate a New Example (for the agent)
+## 2. How to add a new concept or feature (for the agent)
 
-When asked to scaffold a new domain concept (e.g., "add reviews"):
-
-1. Create `packages/db/src/entities/<concept>/<name>.entity.ts`. Register it in
-   `entities/index.ts`.
-2. Create `packages/core/src/services/<concept>/<name>.service.ts`. Register the
-   class in `container.ts` (`asClass(...).scoped()`) and its type in `cradle.ts`.
-3. Add shared validation at `packages/core/src/validators/<concept>/<name>-<action>.schema.ts`
-   — this is not optional once there's a create/update input to validate.
-4. If the concept emits domain events, add them to `core/src/events` using the
-   `concept.entity.action` naming and emit from the service after a successful
-   mutation.
-5. Add the HTTP surface in `packages/app/src/app/api/<concept>/route.ts`:
-    - Plain CRUD resource → `export const { GET, POST, PUT, DELETE } = makeCrudRoute({ schema, service })`.
-    - Custom workflow (booking, payment, reschedule) → wrap the handler in `apiHandler`,
-      call `requireSession`/ownership assertions from `core/src/http/auth.ts`, then one
-      or more service methods through `withScope`.
-    - Never write a bare `try/catch` + manual `NextResponse.json` — that's what
-      `apiHandler`/`makeCrudRoute` exist to remove.
-6. Add the page(s) under the matching persona route group
-   (`(student)/`, `(mentor)/`, `(auth)/`, `(marketing)/`):
-    - Fetch through `apiCall`/`apiCallOrThrow` — never a raw `fetch`.
-    - Create/edit UI → `CrudForm` bound to the same schema from step 3.
-    - List UI → `DataTable`.
-    - Loading/error/empty states → the shared `feedback/` components, not bespoke JSX.
-    - Before writing any new component, check `ui/src/backend/` (generic pattern?) and
-      `ui/src/components/<concept>/` (this concept already has it?) per the placement
-      decision tree in Section 1 — only write a new one if neither applies.
-7. Never create a `modules/<concept>/` directory, a per-concept `setup.ts`/`acl.ts`,
-   or any auto-discovery mechanism — the four packages above are the only structure.
+1. Read `.ai/lessons.md` and the relevant screen in `.ai/mockups/funtionality/docs/04-screen-specifications.md`.
+2. `db`: entity at `entities/<concept>/<name>.entity.ts`, export from `entities/index.ts`, then `pnpm db:migration:create`; review the SQL; commit entity and migration together. Add the repository in `repositories/<concept>/`.
+3. `core`: repository port, service in `services/<concept>/`, schemas in `validators/<concept>/`, events in `events/` if it emits any, errors in `http/errors.ts` only if a new code is needed.
+4. `app/src/server/container.ts`: register the repository implementation and the service by hand; add the `Cradle` type next to the `register*` helper.
+5. `app/src/app/api/v1/<concept>/.../route.ts`: wrap in `apiHandler`; call `requireSession`/`requireToken` first; parse with the shared schema; call one service method; return the body from doc 04.
+6. Page in the right route group (`(site)`, `(app)`, `(admin)`): Server Component with `await connection()` and `<Suspense>` with the `loading-state` fallback; mutations through server actions or `api-client` calling the service-backed route; `error-state` and `empty-state` for the other states.
+7. Tests next to the code. Add a lesson if something surprised you.
+8. Never create `modules/<concept>/`, per-concept setup files, or auto-discovery.
 
 ---
 
-## 3. Changes to Apply to `AGENTS.md`
+## 3. Changes to apply to `AGENTS.md`
 
-Add a new subsection right after **"Monorepo layout"**, and update **"Conventions &
-gotchas"**:
+Add after **Monorepo layout**:
 
 ```markdown
 ### Domain concept convention
 
-Domain code is not organized into `modules/`. Each concept (`auth`, `mentors`,
-`availability`, `bookings`, `payments`, `messages`, `favorites`, `reviews`, ...) is a
-same-named sub-folder repeated across the layers that need it:
+Code is organised by concept, not by module runtime. A concept (`auth`, `bookmarks`,
+`collections`, `tags`, `enrichment`, `search`, `transfer`) is a same-named sub-folder
+repeated in the layers that need it:
 
-- `packages/db/src/entities/<concept>/<name>.entity.ts`
-- `packages/core/src/services/<concept>/<name>.service.ts`
-- `packages/core/src/validators/<concept>/` (shared Zod schemas, when needed)
-- `packages/app/src/app/api/<concept>/route.ts` and the matching `page.tsx` under
-  the relevant persona route group
+- `packages/db/src/entities/<concept>/<name>.entity.ts`, `repositories/<concept>/`
+- `packages/core/src/services/<concept>/` (services, repository and external ports,
+  adapters), `validators/<concept>/`
+- `packages/app/src/app/api/v1/<concept>/.../route.ts` and the pages that use it
 
-Create a concept folder only when its first file is added — never scaffold empty
-ones. This is a directory convention, not a module runtime: there is no per-concept
-setup/ACL/auto-discovery. See `.ai/docs/engineering-standards.md` for the full
-naming table and the payments-port/event-emitter patterns.
+Create a concept folder only when its first file is added. `core` cannot import `db`,
+so a service depends on a repository port declared in `core`; `db` implements it and
+`container.ts` binds the two. See `.ai/docs/engineering-standards.md`.
 
-Event IDs follow `concept.entity.action` (e.g. `bookings.booking.created`) and are
-emitted through the typed emitter in `packages/core/src/events`, registered on the
-`Cradle` — this is in-process only; there is no queue/worker in this project.
+### Shared API and UI layers
 
-### Reusable API & UI layer
-
-Every route and every page reuses two shared layers instead of re-implementing
-fetch/validation/auth/error-handling per feature:
-
-- `packages/core/src/http/` — `errors.ts` (typed `AppError` hierarchy),
-  `apiHandler.ts` (wraps a route: catches `AppError`s, maps to status + JSON
-  envelope, logs unexpected failures), `makeCrudRoute.ts` (schema + service in,
-  `{ GET, POST, PUT, DELETE }` out, for plain CRUD resources), `auth.ts`
-  (`requireSession`, `requireRole`, ownership assertions).
-- `packages/ui/src/backend/` — `api/apiCall.ts` (the only sanctioned `fetch()` call
-  site), `forms/CrudForm.tsx`, `tables/DataTable.tsx`,
-  `feedback/{LoadingMessage,ErrorMessage,EmptyState}.tsx`.
-
-New reusable components have one designated home each — never scattered ad hoc:
-
-1. Shadcn primitive → `ui/src/components/ui/` (via `npx shadcn@latest add`, never
-   hand-written).
-2. Generic, concept-agnostic panel pattern → `ui/src/backend/<category>/`.
-3. Component tied to one concept's domain shape → `ui/src/components/<concept>/`,
-   named after the same concept folder used in `db`/`core`.
-4. Used by exactly one page → colocate next to that `page.tsx` until a second
-   consumer appears.
-
-See `.ai/docs/engineering-standards.md` for the full rationale and the DRY/SRP/
-dependency-inversion reasoning behind this split.
+- `packages/core/src/http/` — `AppError` hierarchy, `api-handler`, `auth` helpers.
+  Every route handler is wrapped in `apiHandler`; none writes its own try/catch.
+- `packages/app/src/lib/api-client.ts` — the only browser `fetch('/api/…')` site.
+- `packages/ui/src/components/` — shadcn primitives (flat, via the CLI),
+  `feedback/`, `data-table`, `crud-form`, and `<concept>/` presentational components.
+- Server code that fetches user-supplied URLs goes through `PageFetcher` only.
 ```
-
-Also fix a doc inconsistency: `docs/product-scope.md` in the training-pack lists "DI
-container" under **Explicitly not in scope**, but the bootstrap already uses
-`awilix` throughout `@devmentor/core`. Update that scope doc to remove/qualify the
-DI-container exclusion (the decision is to keep `awilix` — it already earns its keep
-managing the scoped `EntityManager`, and will do more work once there are ~9 services
-instead of 1) so the spec and the code stop contradicting each other.
 
 ---
 
-## 4. Proposed Scalable Package Structure
+## 4. Proposed package structure
 
 ```
 packages/
-  app/
-    src/app/
-      (marketing)/
-        page.tsx                                  # S01 landing
-        mentors/page.tsx                           # S02 search results
-        mentors/[mentorId]/page.tsx                # S03 mentor profile
-      (auth)/
-        login/page.tsx                             # S04
-        register/page.tsx
-      (student)/
-        book/[mentorId]/page.tsx                   # S05 booking flow
-        checkout/[bookingId]/page.tsx               # S06 checkout
-        dashboard/page.tsx                          # S07
-        sessions/page.tsx                           # S08 my sessions
-        sessions/[bookingId]/reschedule/page.tsx     # S09
-        messages/page.tsx                           # S10
-        favorites/page.tsx                          # S11
-        settings/page.tsx                           # S12
-      (mentor)/
-        mentor/dashboard/page.tsx                   # M01
-        mentor/availability/page.tsx                # M02
-        mentor/sessions/page.tsx                    # M03
-        mentor/profile/page.tsx                     # M04
-        mentor/students/page.tsx                    # M05 (stretch)
-        mentor/reviews/page.tsx                     # M06
-      api/
-        auth/route.ts
-        mentors/route.ts
-        mentors/[id]/route.ts
-        availability/route.ts
-        bookings/route.ts
-        bookings/[id]/reschedule/route.ts
-        bookings/[id]/cancel/route.ts
-        payments/route.ts
-        payments/webhook/route.ts
-        messages/route.ts
-        messages/[conversationId]/route.ts
-        favorites/route.ts
-        reviews/route.ts
+  app/src/
+    app/
+      (site)/                         # public, Tailwind
+        page.tsx                      # landing
+        login/page.tsx                # S1
+        signup/page.tsx               # S1
+        s/[slug]/page.tsx             # S10 public collection (S11 via notFound())
+      (app)/                          # product, shadcn — NEEDS APPROVAL (section 6)
+        welcome/page.tsx              # S2
+        library/page.tsx              # S3  (+ library/c/[id], library/t/[tag])
+        inbox/page.tsx                # S5
+        search/page.tsx               # S6
+        collections/page.tsx          # S8  (S9 share dialog is a client component)
+        data/page.tsx                 # S12
+        integrations/page.tsx         # S13
+        trash/page.tsx                # S14
+        settings/page.tsx             # S15
+        # S4 add dialog and S7 detail drawer: client components, not routes
+      (admin)/admin/
+        page.tsx                      # S16
+        jobs/page.tsx                 # S17
+        users/page.tsx                # S18
+      api/v1/
+        auth/{signup,login,logout,magic-link,password-reset}/route.ts
+        me/route.ts                   # + me/password, me/ai-settings, me/usage
+        bookmarks/route.ts            # GET list, POST create
+        bookmarks/[id]/route.ts       # GET, PATCH, DELETE
+        bookmarks/[id]/{enrich,open,restore}/route.ts
+        bookmarks/[id]/suggestions/{accept,dismiss}/route.ts
+        bookmarks/{check,counts,bulk}/route.ts
+        collections/route.ts          # + [id], [id]/share
+        tags/route.ts
+        search/route.ts               # + search/suggest
+        imports/route.ts              # + [id]
+        exports/route.ts              # + [id]
+        tokens/route.ts               # + [id]
+        public/collections/[slug]/route.ts   # + /bookmarks
+        admin/{stats,jobs,users,audit}/route.ts
         health/route.ts
+    lib/api-client.ts
+    server/container.ts               # composition root (only place that registers)
 
-  core/
-    src/
-      config/env.ts
-      container/{container.ts,cradle.ts}
-      logger.ts
-      http/
-        errors.ts                                   # AppError hierarchy
-        apiHandler.ts                                # try/catch + envelope, once
-        makeCrudRoute.ts                             # config-driven CRUD routes
-        auth.ts                                      # requireSession/requireRole/ownership
-      events/
-        event-bus.ts                                # typed emitter, in-process only
-        event-map.ts                                # `concept.entity.action` registry
-      services/
-        auth/user.service.ts
-        mentors/mentor.service.ts
-        mentors/technology.service.ts
-        availability/availability.service.ts
-        bookings/booking.service.ts
-        payments/payment.service.ts
-        payments/payment-gateway.port.ts             # interface
-        payments/adapters/mock-payment-gateway.ts    # MVP adapter
-        messages/message.service.ts
-        favorites/favorite.service.ts
-        reviews/review.service.ts
-      validators/
-        auth/register.schema.ts
-        bookings/booking-create.schema.ts
-        mentors/profile-update.schema.ts
-        ...
+  core/src/
+    index.ts                          # DI helpers, Cradle (exists)
+    container.ts                      # createAppContainer (exists)
+    config/env.ts
+    logger.ts
+    http/{errors,api-handler,auth}.ts
+    events/{event-bus,event-map}.ts
+    services/
+      auth/{user.service,token.service,user-repository.port,token-repository.port}.ts
+      bookmarks/{bookmark.service,bookmark-repository.port}.ts
+      collections/{collection.service,collection-repository.port}.ts
+      tags/tag.service.ts
+      enrichment/
+        enrichment.service.ts
+        page-fetcher.port.ts
+        enrichment-provider.port.ts
+        adapters/{http-page-fetcher,mock-enrichment-provider}.ts
+      search/search.service.ts
+      transfer/{import.service,export.service}.ts
+    validators/{auth,bookmarks,collections,transfer}/*.schema.ts
 
-  db/
-    src/entities/
+  db/src/
+    entities/
       base.entity.ts
-      define.ts
-      auth/user.entity.ts
-      mentors/mentor-profile.entity.ts
-      mentors/technology.entity.ts
-      availability/slot.entity.ts
-      bookings/booking.entity.ts
-      payments/payment.entity.ts
-      messages/conversation.entity.ts
-      messages/message.entity.ts
-      favorites/favorite.entity.ts
-      reviews/review.entity.ts
+      auth/{user,api-token}.entity.ts
+      bookmarks/bookmark.entity.ts
+      collections/collection.entity.ts
+      enrichment/enrichment-job.entity.ts
+    repositories/<concept>/*.repository.ts
+    migrations/
 
-  ui/
-    src/
-      components/
-        ui/                                          # shadcn primitives only
-                                                       # (npx shadcn add — never hand-written)
-        mentors/
-          mentor-card.tsx                             # concept-specific shared components,
-        availability/                                 # one folder per concept, same names
-          time-slot-picker.tsx                        # as entities/ and services/
-        messages/
-          conversation-thread.tsx
-        reviews/
-          review-stars.tsx
-      backend/                                        # generic, concept-agnostic panel
-        api/                                           # primitives — this is where NEW
-          apiCall.ts                                   # cross-cutting UI patterns land
-          types.ts                                     # (a new field type, a new table
-        forms/                                         # cell renderer, a new feedback
-          CrudForm.tsx                                  # state) as the app grows —
-        tables/                                         # never a per-concept copy
-          DataTable.tsx
-        feedback/
-          LoadingMessage.tsx
-          ErrorMessage.tsx
-          EmptyState.tsx
+  ui/src/
+    components/
+      button.tsx …                    # shadcn primitives, flat (exists)
+      feedback/{loading-state,error-state,empty-state}.tsx
+      data-table.tsx
+      crud-form.tsx
+      bookmarks/{bookmark-card,bookmark-row,ai-badge,confidence-meter}.tsx
+      collections/collection-tree.tsx
+    lib/utils.ts                      # cn (exists)
 ```
 
-Dependency direction is unchanged: `app → core → db`, `ui` standalone. Only the
-internal layout of `entities/`, `services/`, `validators/`, `api/`/pages, and
-`ui/src/components/` gains a concept sub-folder — no new packages, no new
-architectural boundary. `ui/src/backend/` is the one folder in this tree that is
-*not* concept-scoped by design: it's the designated growth point for reusable
-panel-building blocks shared across every concept, mirroring `core/src/http/` on the
-server side.
+Tags are derived from `bookmarks.tags` (a `text[]` column with a GIN index) in the MVP, so there is no `Tag` entity. Revisit if tags need their own attributes.
+
+Each mockup screen maps to exactly one page or one client component above; the mapping table in `docs/03-screen-and-navigation-map.md` is the index.
 
 ---
 
-## 5. Migration Instructions (current repo → this structure)
+## 5. Migration plan (current repo → this structure)
 
-Do this incrementally, one buildable step at a time — never one giant move-everything
-commit.
+Incremental; each step builds on its own.
 
-1. **Move the existing `auth` and `mentors` concepts into sub-folders first** (they
-   already exist, nothing new to design):
-    - `entities/user.entity.ts` → `entities/auth/user.entity.ts`
-    - `entities/mentor-profile.entity.ts` → `entities/mentors/mentor-profile.entity.ts`
-    - Update the relative imports inside those two files and in `entities/index.ts`.
-    - `services/user.service.ts` → `services/auth/user.service.ts`
-    - Update `services/index.ts`, `container.ts`, `cradle.ts` import paths.
-    - Run `npm run typecheck && npm run lint && npm run build`. Table names, migration
-      files, and the `Cradle` interface shape are unaffected — only file paths move.
-2. **Add `packages/core/src/http/` (`errors.ts`, `apiHandler.ts`, `makeCrudRoute.ts`,
-   `auth.ts`) and `packages/ui/src/backend/` (`api/apiCall.ts`, `forms/CrudForm.tsx`,
-   `tables/DataTable.tsx`, `feedback/*`) next, before adding a second concept** — every
-   concept from here on depends on these existing, and retrofitting them after three
-   concepts already have hand-rolled fetch/error code is much more painful than
-   building them first against one real example.
-3. **Refactor `/admin/users` and `/api/health`-style demo code to prove the new
-   layers work** before building on top of them: rewrite the existing
-   `admin/users/page.tsx` (currently a hand-written `try/catch` + inline JSX list) to
-   fetch through `apiCall` and render through `DataTable`, and give it a real
-   `api/users/route.ts` built with `makeCrudRoute` instead of calling `withScope`
-   directly from the page. This is the reference example every later concept copies —
-   get it right once here.
-4. **Add `core/src/events/` (event bus + event map)** before implementing the first
-   feature that needs one (bookings or messages, per the use cases) — don't add it
-   speculatively ahead of that.
-5. **Add `core/src/validators/`** the same way, starting with whichever concept's
-   spec you implement first (likely `auth/register.schema.ts` if auth forms come
-   before booking).
-6. **For every new concept from here on** (`availability`, `bookings`, `payments`,
-   `messages`, `favorites`, `reviews`), follow Section 2 exactly — create folders only
-   when adding that concept's first file, reuse `makeCrudRoute`/`apiHandler` and
-   `CrudForm`/`DataTable` before writing anything bespoke, and never earlier.
-7. **Update `AGENTS.md`** with the Section 3 diff in the same PR as step 1, so the
-   convention (including the reusable API/UI layer) is documented before the second
-   concept folder appears — not retroactively once the pattern is inconsistent across
-   concepts.
-8. **Reconcile `docs/product-scope.md`**: remove/qualify the "DI container" line
-   under "Explicitly not in scope" per the decision to keep `awilix`.
-9. After each step, confirm `npm run build` still succeeds and `/admin/users` /
-   `/api/health` still work — they're the regression check for the whole migration
-   until real features replace them.
+1. **Docs first.** Apply section 3 to `AGENTS.md`. Fix the `.ai` template mismatch in this file (done by this rewrite).
+2. **Foundation in `core`.** Add `http/errors.ts`, `http/api-handler.ts`, `http/auth.ts` (ports only), `events/`, `config/env.ts`, `logger.ts`. Add subpath exports (`./http`, `./events`, `./config`). Unit-test `api-handler` error mapping.
+3. **Foundation in `app`.** `lib/api-client.ts`; `api/v1/health/route.ts` built with `apiHandler` as the reference route; wire into the existing composition root.
+4. **Foundation in `ui`.** Add `feedback/*` with the project's own tokens. Add `data-table` and `crud-form` when the first list/form screen is built, not before.
+5. **First concept: `bookmarks`** (entity, migration, repository, port, service, schema, routes, S3/S4). Follow section 2 exactly. This is the reference every later concept copies.
+6. **Then** `collections`, `enrichment` (with mock adapter and the SSRF-guarded fetcher), `auth`, `search`, `transfer`, admin.
+7. After each step: `pnpm typecheck && pnpm lint && pnpm build`.
+
+**Implementation scope of the standards task** = steps 1–3 plus the `feedback/*` part of step 4. Domain entities and screens (step 5 onward) are product work and are not part of "implement the standards".
+
+---
+
+## 6. Open decisions (Ask First)
+
+| # | Decision | Recommendation | Why it needs you |
+|---|---|---|---|
+| 1 | Route group and styling for the product app | New `(app)` group, shadcn + `ui` theme | AGENTS.md defines only `(site)` and `(admin)` |
+| 2 | Validation library | Zod | Not in the stack table; a new dependency |
+| 3 | Auth mechanism | Decide before step 6; magic link + password | Defines session reader and CSRF approach |
+| 4 | Async enrichment via DB table + `after()` | Yes for MVP | Alternative is an external queue, which this document excludes |
+| 5 | Full-text via PostgreSQL, semantic later | Yes | pgvector is an extension to install |
+| 6 | `db → core` repository ports | Yes | Differs from the earlier template's `app → core → db` and follows AGENTS.md |
