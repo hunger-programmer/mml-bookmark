@@ -185,6 +185,8 @@ When two pull in different directions, choose the one that keeps the change smal
 - [ ] Every one of loading / empty / error / success is reachable for each new screen (doc 04).
 - [ ] A migration accompanies every entity change; no merged migration is edited.
 - [ ] Behavior changes ship with a test that fails on the old code.
+- [ ] New code is covered 100% by unit tests (`pnpm test:coverage`); new pages and database-crossing flows also get an integration test in `packages/integration`.
+- [ ] A spec in `.ai/specs/` exists for the change and matches what was built.
 
 ---
 
@@ -333,7 +335,7 @@ Each mockup screen maps to exactly one page or one client component above; the m
 Incremental; each step builds on its own.
 
 1. **Docs first.** Apply section 3 to `AGENTS.md`. Fix the `.ai` template mismatch in this file (done by this rewrite).
-2. **Foundation in `core`.** Add `http/errors.ts`, `http/api-handler.ts`, `http/auth.ts` (ports only), `events/`, `logger.ts`, `register.ts` (`registerCore`). Add subpath exports (`./http`, `./events`). `config/env.ts` waits for the first new env var (the db package already owns database settings). Unit tests for `api-handler` need a test runner, which the stack table does not name: decide it (Vitest is the usual fit) before the first domain service; until then the error mapping was checked by a throwaway script.
+2. **Foundation in `core`.** Add `http/errors.ts`, `http/api-handler.ts`, `http/auth.ts` (ports only), `events/`, `logger.ts`, `register.ts` (`registerCore`). Add subpath exports (`./http`, `./events`). `config/env.ts` waits for the first new env var (the db package already owns database settings). Unit tests: Vitest, decided and in place (see `.ai/specs/archive/2026-10-14-ci-and-testing.md`); 100% coverage is enforced.
 3. **Foundation in `app`.** `lib/api-client.ts`; `api/v1/health/route.ts` built with `apiHandler` as the reference route; wire into the existing composition root.
 4. **Foundation in `ui`.** Add `feedback/*` with the project's own tokens. Add `data-table` and `crud-form` when the first list/form screen is built, not before.
 5. **First concept: `bookmarks`** (entity, migration, repository, port, service, schema, routes, S3/S4). Follow section 2 exactly. This is the reference every later concept copies.

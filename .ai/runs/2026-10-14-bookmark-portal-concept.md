@@ -40,3 +40,14 @@ Concept docs (users, use cases/flows, screen map, per-screen specs) and clickabl
 - Not visually checked in a real browser (jsdom only).
 - Decisions in standards section 6 need the user's answer before the `bookmarks` concept is built.
 - `pnpm install` printed "Ignored build scripts: esbuild" (pnpm approve-builds); did not change it.
+
+## Follow-up run (same session): structure audit, CI, tests
+
+- Audit of the code against `engineering-standards.md`: structure matched; gaps were (a) boundaries not enforced, (b) doc/code signature drift (`requireSession(reader, request)`, `assertOwns`), (c) README silent about concepts. Fixed: ESLint `no-restricted-imports` / `no-restricted-globals` / `no-restricted-syntax` in root and `packages/app` configs (each rule proven to fire with a throwaway violating file, then removed), doc aligned, README section added.
+- CI: `.github/workflows/ci.yml` with lint, typecheck, build, unit (100% gate), integration jobs. Spec: `.ai/specs/archive/2026-10-14-ci-and-testing.md` (written alongside the work, archived as implemented).
+- Unit tests: Vitest 5, 29 files / 116 tests, 100% statements/branches/functions/lines. Refactor for testability: `DatabaseStatus` moved out of the admin page into `database-status.tsx`.
+- Integration: new package `packages/integration` (Testcontainers `postgres:17-alpine`, `pnpm db:migration:up`, `next start`, agent-browser). 2 files / 6 tests (home page, health, admin incl. "Database: connected") pass locally with Docker.
+- `pnpm-workspace.yaml` `allowBuilds` made explicit (pnpm 12 failed `pnpm install` on ignored build scripts).
+- AGENTS.md: testing/CI section (100% coverage rule), SDD section (`.ai/specs/`, spec first, decision log, archive on completion), packages table, commands.
+- Verification (all run in this session): `pnpm typecheck`, `pnpm lint`, `pnpm build`, `pnpm test:coverage` (100%), `pnpm test:integration` — pass.
+- Not verified: the workflow itself has not run on GitHub yet.
