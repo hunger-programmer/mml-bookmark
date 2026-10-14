@@ -41,6 +41,8 @@ packages/
 3. **Import through `exports` only** (`@mml-bookmark/db`, `@mml-bookmark/ui/components/button`). No relative imports across package boundaries, no deep imports into another package's `src/`.
 4. **`core` stays framework-agnostic:** no React, no Next.js, no database driver imports.
 5. **`ui` is presentational:** no data fetching, no DI container, no `db` imports.
+
+Rules 1, 3, 4 and 5 are enforced by ESLint (`eslint.config.mjs`, `packages/app/eslint.config.mjs`); `pnpm lint` fails on a violation. Do not disable these rules to get a change through; fix the dependency direction.
 6. **Shared dependencies keep one version.** `react`/`react-dom` are peer dependencies of library packages. Dev tooling (TypeScript, ESLint) lives in the root `package.json`.
 
 ### Domain concept convention

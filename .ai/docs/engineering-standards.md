@@ -72,8 +72,8 @@ Without these, every one of the ~40 endpoints and 18 screens re-invents fetch, v
 **Server — `packages/core/src/http/`** (framework-agnostic: uses Web `Request`/`Response`, never `NextResponse`)
 
 - `errors.ts` — `AppError` base and `NotFoundError`, `ForbiddenError`, `UnauthorizedError`, `ValidationError`, `ConflictError`, `RateLimitedError`, each with a stable `code`. Services throw these and never build a response.
-- `api-handler.ts` — wraps a route function: parses/validates, maps `AppError` to status plus the error body, logs anything else and returns a generic 500 with no stack.
-- `auth.ts` — `requireSession(request)`, `requireToken(request, scope)` and ownership assertions (`assertOwnsBookmark`). They depend on a `SessionReader` port that `app` implements, because the auth mechanism is not chosen yet.
+- `api-handler.ts` — wraps a route function: maps `AppError` to status plus the error body, logs anything else and returns a generic 500 with no stack. Also exports `json` and `readJson` (malformed body → `ValidationError`).
+- `auth.ts` — `requireSession(reader, request)` (also enforces the CSRF header on unsafe methods), `requireToken(reader, request, 'save' | 'read')`, `requireAdmin(session)` and the generic `assertOwns(session, ownerId)`. They depend on a `SessionReader` port that `app` implements, because the auth mechanism is not chosen yet.
 - `makeCrudRoute` is **not built now**. Introduce it when the second plain CRUD resource (collections, tokens) is implemented and the duplication is visible.
 
 **Wire format** (source of truth: doc 04 "API conventions")
@@ -162,7 +162,7 @@ When two pull in different directions, choose the one that keeps the change smal
 - [ ] No import breaks the direction in section 1; no cross-package relative or deep import.
 - [ ] `core` has no `next`, `react`, or `@mikro-orm` import; `ui` has no fetch or `db` import.
 - [ ] Routes use `apiHandler`; client calls go through `api-client`; lists/forms use the shared components or give a reason.
-- [ ] `pnpm typecheck && pnpm lint && pnpm build` pass.
+- [ ] `pnpm typecheck && pnpm lint && pnpm build` pass. ESLint (`no-restricted-imports`, `no-restricted-globals`, `no-restricted-syntax` in the root and `packages/app` configs) enforces the package boundaries, ui-never-fetches, MikroORM-only-in-db, and the `apiCall`-only rule; do not disable them to get a change through.
 
 **Security** (blocker unless stated)
 
@@ -284,6 +284,7 @@ packages/
     container.ts                      # createAppContainer (exists)
     config/env.ts
     logger.ts
+    register.ts                       # registerCore: logger, eventBus
     http/{errors,api-handler,auth}.ts
     events/{event-bus,event-map}.ts
     services/
