@@ -12,8 +12,7 @@ Example: `2026-10-13-bookmark-tagging.md`
 | Location | Meaning |
 |---|---|
 | `specs/` | Active: approved or in progress |
-| `specs/implemented/` | Done and shipped. Move here when the work is merged |
-| `specs/archive/` | Abandoned, superseded, or obsolete. Add a one-line reason at the top |
+| `specs/archive/` | Implemented (set status to `implemented`), or abandoned / superseded (add a one-line reason at the top). History, never deleted |
 
 Moving a spec = `git mv`, keep the filename unchanged.
 
@@ -22,9 +21,18 @@ Moving a spec = `git mv`, keep the filename unchanged.
 ```md
 # <Title>
 
+- Status: draft | approved | in-progress | implemented
+- Date: YYYY-MM-DD
+
 ## Goal
 ## Non-goals
 ## Requirements
+## Decisions
+What was chosen, why, and which alternatives were rejected.
 ## Acceptance criteria
+## Decision log
+One line per change after approval: date, what changed, why, who approved.
 ## Notes / open questions
 ```
+
+The spec is written **before** the implementation, and updated first whenever a requirement or decision changes. See `AGENTS.md` "Specification-driven development".

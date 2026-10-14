@@ -15,13 +15,18 @@
     "db:migration:create": "pnpm --filter @mml-bookmark/db migration:create",
     "db:migration:up": "pnpm --filter @mml-bookmark/db migration:up",
     "db:migration:down": "pnpm --filter @mml-bookmark/db migration:down",
-    "db:migration:list": "pnpm --filter @mml-bookmark/db migration:list"
+    "db:migration:list": "pnpm --filter @mml-bookmark/db migration:list",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:integration": "pnpm --filter @mml-bookmark/integration test"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",
+    "@vitest/coverage-v8": "^5.0.4",
     "eslint": "^9.39.5",
     "eslint-plugin-react-hooks": "^7.1.1",
     "typescript": "~6.0.3",
-    "typescript-eslint": "^8.71.2"
+    "typescript-eslint": "^8.71.2",
+    "vitest": "^5.0.4"
   }
 }

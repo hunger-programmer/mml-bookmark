@@ -55,6 +55,16 @@ app ──► ui
 
 `core` and `ui` depend on no internal package. Internal packages have no build step: they export TypeScript source, which Turbopack compiles as part of the app.
 
+### Code organisation
+
+Code is grouped by concept (`auth`, `bookmarks`, `collections`, `tags`, `enrichment`, `search`, `transfer`) with the same folder name in `db`, `core` and `app`. Services in `core` depend on repository ports; `db` implements them. Naming, security rules and the review checklist are in `.ai/docs/engineering-standards.md`; the product concept and clickable mockup are in `.ai/mockups/funtionality/`.
+
+### Testing and CI
+
+- `pnpm test` / `pnpm test:coverage`: Vitest unit tests next to the code, 100% coverage gate.
+- `pnpm test:integration`: builds the app, starts PostgreSQL in Docker (Testcontainers), runs migrations, and drives the app with agent-browser (`packages/integration`). First run: `pnpm --filter @mml-bookmark/integration browser:install`.
+- GitHub Actions (`.github/workflows/ci.yml`) runs lint, typecheck, build, unit and integration jobs on every pull request.
+
 ### Request flow
 
 ```

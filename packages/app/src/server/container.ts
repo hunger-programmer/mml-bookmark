@@ -1,6 +1,6 @@
 import "server-only";
 import { cache } from "react";
-import { createAppContainer, type AppContainer } from "@mml-bookmark/core";
+import { createAppContainer, registerCore, type AppContainer } from "@mml-bookmark/core";
 import { getOrm, registerDb } from "@mml-bookmark/db";
 
 // Composition root: the only place that registers into the root container.
@@ -11,6 +11,7 @@ const globalForContainer = globalThis as typeof globalThis & {
 
 async function buildContainer(): Promise<AppContainer> {
   const container = createAppContainer();
+  registerCore(container);
   registerDb(container, await getOrm());
   return container;
 }
