@@ -1,7 +1,7 @@
 # mml-bookmark — Engineering Standards & Package Structure
 
 Date: 2026-10-14
-Status: proposed (supersedes the earlier template that described a different product, a mentor-booking marketplace)
+Status: active; foundation (section 5 steps 1–4) implemented 2026-10-14 (supersedes the earlier template that described a different product, a mentor-booking marketplace)
 
 Grounded in three sources, in this order of authority:
 
@@ -332,7 +332,7 @@ Each mockup screen maps to exactly one page or one client component above; the m
 Incremental; each step builds on its own.
 
 1. **Docs first.** Apply section 3 to `AGENTS.md`. Fix the `.ai` template mismatch in this file (done by this rewrite).
-2. **Foundation in `core`.** Add `http/errors.ts`, `http/api-handler.ts`, `http/auth.ts` (ports only), `events/`, `config/env.ts`, `logger.ts`. Add subpath exports (`./http`, `./events`, `./config`). Unit-test `api-handler` error mapping.
+2. **Foundation in `core`.** Add `http/errors.ts`, `http/api-handler.ts`, `http/auth.ts` (ports only), `events/`, `logger.ts`, `register.ts` (`registerCore`). Add subpath exports (`./http`, `./events`). `config/env.ts` waits for the first new env var (the db package already owns database settings). Unit tests for `api-handler` need a test runner, which the stack table does not name: decide it (Vitest is the usual fit) before the first domain service; until then the error mapping was checked by a throwaway script.
 3. **Foundation in `app`.** `lib/api-client.ts`; `api/v1/health/route.ts` built with `apiHandler` as the reference route; wire into the existing composition root.
 4. **Foundation in `ui`.** Add `feedback/*` with the project's own tokens. Add `data-table` and `crud-form` when the first list/form screen is built, not before.
 5. **First concept: `bookmarks`** (entity, migration, repository, port, service, schema, routes, S3/S4). Follow section 2 exactly. This is the reference every later concept copies.

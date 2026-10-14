@@ -43,6 +43,23 @@ packages/
 5. **`ui` is presentational:** no data fetching, no DI container, no `db` imports.
 6. **Shared dependencies keep one version.** `react`/`react-dom` are peer dependencies of library packages. Dev tooling (TypeScript, ESLint) lives in the root `package.json`.
 
+### Domain concept convention
+
+Code is organised by concept, not by a module runtime. A concept (`auth`, `bookmarks`, `collections`, `tags`, `enrichment`, `search`, `transfer`) is a same-named sub-folder repeated in the layers that need it:
+
+- `packages/db/src/entities/<concept>/<name>.entity.ts` and `repositories/<concept>/`
+- `packages/core/src/services/<concept>/` (services, repository and external ports, adapters) and `validators/<concept>/`
+- `packages/app/src/app/api/v1/<concept>/.../route.ts` and the pages that use it
+
+Create a concept folder only when its first file is added. `core` cannot import `db`, so a service depends on a repository **port** declared in `core`; `db` implements it and the composition root binds the two. Event IDs are `concept.entity.action` (e.g. `bookmarks.bookmark.created`), emitted through the in-process `EventBus` from `@mml-bookmark/core/events`; there is no queue. Full naming table, security rules and review checklist: `.ai/docs/engineering-standards.md`.
+
+### Shared API and UI layers
+
+- `@mml-bookmark/core/http` — `AppError` hierarchy, `apiHandler`, `json`/`readJson`, `requireSession`/`requireToken`/`requireAdmin`/`assertOwns`. Every route handler is wrapped in `apiHandler`; none writes its own try/catch. Errors are `{ "error": { code, message, fields? } }`; success bodies are the resource itself.
+- `packages/app/src/lib/api-client.ts` (`apiCall`, `apiCallOrThrow`) — the only browser `fetch('/api/…')` call site. It always sends the CSRF header.
+- `packages/ui/src/components/feedback/` — `LoadingState`, `ErrorState`, `EmptyState`: the only loading/error/empty renderers.
+- Server code that fetches a user-supplied URL goes through a `PageFetcher` port with an SSRF guard, never a bare `fetch`.
+
 ## Styling
 
 - **Public pages** live in `packages/app/src/app/(site)/` and use plain Tailwind utility classes. Their CSS entry is `(site)/globals.css`. Do not import `@mml-bookmark/ui` components there.
