@@ -138,6 +138,7 @@ All AI-related project metadata lives in `.ai/`. Agents MUST follow this structu
 .ai/
 ├── specs/                  # Specifications for spec-driven development (SDD)
 │   ├── YYYY-MM-DD-slug.md  # Active specs
+│   ├── research/           # Discovery inputs: interview notes, data extracts, decision records (read by om-discover)
 │   └── archive/            # Implemented, abandoned or superseded specs (history; never deleted)
 ├── runs/                   # Logs of autonomous AI runs
 │   └── YYYY-MM-DD-slug.md
