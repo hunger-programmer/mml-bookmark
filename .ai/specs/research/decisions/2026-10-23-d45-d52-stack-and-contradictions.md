@@ -33,3 +33,8 @@
 ## D52 — Contradictory and viewer-sourced instructions (Q44, Q45)
 - When creator sources disagree, a fixed priority decides silently: the creator's latest correction (pinned or creator comment), then the description, then the transcript (founder chose silent resolution over a visible note, the recommendation). Replaces the earlier brief's proposal to resolve conflicts visibly.
 - Only creator content is used; viewer comments are ignored, including when they hold the only recipe (founder's choice over labelled viewer recipes, the recommendation). R06 is superseded by R21. Consequence: if the comment in the founder's 7-rewatch video was written by a viewer, that video's card comes only from the transcript.
+
+## D53 — Separate specs instead of one MVP spec (supersedes D45)
+- Date, owner: 2026-10-23, Paweł Wójcik (founder)
+- Founder: "let's not use one big spec, use separate insted as you suggested". Adopts the agent's original recommendation from Q33: a platform-foundation spec first (stack table, auth, users and admin, job processing, hosting, standards cleanup: D46–D51), then separate feature specs for extraction, the clients (Chrome extension, iOS app), and the library.
+- Status: active. D45 status: superseded by D53.
