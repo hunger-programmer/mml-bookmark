@@ -1,0 +1,22 @@
+# Interview — founder and intended first user, 2026-10-22
+- Recent situation or task the person described: Saved a link to a recipe on YouTube the same day, as a bookmark in the Chrome browser, then cooked from it.
+- What they did, step by step: Saved the YouTube link as a Chrome bookmark. Cooked from the video.
+- What worked, what did not, and any consequences they described: No ingredient list was available. Consequence: the video had to be watched 7 times during cooking.
+- Other approaches they tried and how those worked: ReciMe is described as the exact use case. Concerns about ReciMe: "no support for browser" and "no automatic categorisation". Whether the founder has used ReciMe was not stated.
+- The outcome they were trying to achieve and what happened: Cook the recipe. Needed repeated viewing of the video to get the ingredients.
+- Verbatim quotes worth keeping (mark each as quote):
+  - quote: "I had to watch video 7 times during cooking, because there were no list of the ingridients available."
+  - quote: "i would love to reproduce functionality of ReciMe in mml-bookmark, this is the exact use case for me."
+  - quote: "no support for browser. No automatic categorisation - i would like to specify categories like: sport exercises, cooking, fun and assign them automatically."
+- Follow-up in round 2 (same session):
+  - Where the ingredients were: spoken in the video; a comment also contained the ingredients and steps.
+  - quote: "there were spoken + i found comment with the ingredients end steps, but i spotted it after i finished cooking"
+- What they explicitly did not care about: grocery lists, meal planning, cookbooks (stated as not to implement).
+- Interviewer's own remarks (kept separate from what was said):
+  - Single account, one person, one event. It supports this person's experience only, not a pattern across other people who save recipes.
+  - The person is also the sole decision-maker for the product, so the account and the decision share one source.
+  - The recipe was retrievable from a comment, but the founder found it only after cooking. The friction in this case was locating information already present in the source, not its absence.
+  - The ReciMe concerns are the founder's statements. The competitive research ([2026-10-22-mml-bookmark-competitive-landscape.md](../2026-10-22-mml-bookmark-competitive-landscape.md), platform table) lists ReciMe with a web app and a Chrome extension. The two do not match; unresolved (see Q01 in the brief).
+- Correction in round 3 (same session):
+  - quote: "I missunderstood recime - it has browser extension."
+  - quote: "I do not have a system of extraction that i can run."

@@ -1,3 +1,5 @@
+> Superseded 2026-10-23: `.ai/specs/product-brief.md` is the product source of truth (D39). Kept as history.
+
 # 3. Screen and navigation map
 
 ## Screen inventory

@@ -1,3 +1,5 @@
+> Superseded 2026-10-23: `.ai/specs/product-brief.md` is the product source of truth (D39). Kept as history.
+
 # 4. Screen specifications
 
 Each screen lists purpose, features, UI components, states (loading / empty / error / success), validation and related API endpoints. Flow IDs (UC*) point to doc 2.

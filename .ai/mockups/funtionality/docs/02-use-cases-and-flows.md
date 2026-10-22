@@ -1,3 +1,5 @@
+> Superseded 2026-10-23: `.ai/specs/product-brief.md` is the product source of truth (D39). Kept as history.
+
 # 2. Main use cases and complete user flows
 
 IDs are referenced from the screen specs (doc 4) and the mockup (`data-flow` hints in the dev bar).

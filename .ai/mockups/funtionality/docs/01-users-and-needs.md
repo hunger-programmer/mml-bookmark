@@ -1,3 +1,5 @@
+> Superseded 2026-10-23: `.ai/specs/product-brief.md` is the product source of truth (D39). Kept as history.
+
 # 1. System users and their needs
 
 Benchmark: raindrop.io for function and UX (capture fast, organise lightly, find instantly). Visual identity, copy and code here are original.
