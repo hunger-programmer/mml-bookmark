@@ -15,7 +15,7 @@ Omit the link when the lesson fits in the one line.
 ## Lessons
 
 <!-- Add new entries below this line, newest first. -->
-- 2026-10-23 — `.ai/specs/product-brief.md` replaced the concept in `.ai/mockups/funtionality/docs/` as the product source of truth (D39). AGENTS.md and `engineering-standards.md` still point at the concept and describe collections, tags, capture tokens and in-house auth until the stack spec (brief Q12) lands; the brief wins where they disagree.
+- 2026-10-23 — `.ai/specs/product-brief.md` replaced the concept in `.ai/mockups/funtionality/docs/` as the product source of truth (D39). AGENTS.md and `engineering-standards.md` still point at the concept and describe collections, tags and in-house auth until the stack spec (brief Q12) lands; the brief wins where they disagree.
 - 2026-10-14 — pnpm 12 exits 1 (`ERR_PNPM_IGNORED_BUILDS`) when a dependency has an unreviewed build script, which breaks `pnpm install --frozen-lockfile` in CI. List every one under `allowBuilds` in `pnpm-workspace.yaml` (true/false).
 - 2026-10-14 — Vitest `restoreMocks: true` also resets spies created at module/describe level; create `vi.spyOn(...).mockImplementation(...)` inside `beforeEach`.
 - 2026-10-14 — agent-browser accessibility names concatenate inline children without spaces (`edit thepage.tsxfile.`); assert on a stable prefix such as `heading "To get started`, not the full text.
