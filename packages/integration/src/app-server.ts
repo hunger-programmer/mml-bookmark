@@ -48,6 +48,14 @@ export async function migrate(databaseUrl: string): Promise<void> {
   await run("pnpm", ["db:migration:up"], { cwd: repoRoot, env: { DATABASE_URL: databaseUrl } });
 }
 
+/**
+ * Fails when entities and migrations disagree, or when the diff would touch a schema
+ * Supabase owns (a new one missing from `SUPABASE_SCHEMAS` in `@mml-bookmark/db`).
+ */
+export async function checkSchema(databaseUrl: string): Promise<void> {
+  await run("pnpm", ["db:migration:check"], { cwd: repoRoot, env: { DATABASE_URL: databaseUrl } });
+}
+
 /** Starts `next start` on a free port against the given database and waits until it is healthy. */
 export async function startApp(databaseUrl: string): Promise<RunningApp> {
   const port = await freePort();

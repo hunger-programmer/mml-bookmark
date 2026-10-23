@@ -10,12 +10,15 @@
     "dev": "pnpm --filter @mml-bookmark/app dev",
     "build": "pnpm --filter @mml-bookmark/app build",
     "start": "pnpm --filter @mml-bookmark/app start",
+    "supabase:start": "supabase start -x realtime,storage-api,imgproxy,edge-runtime,logflare,vector,studio",
+    "supabase:stop": "supabase stop",
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",
     "db:migration:create": "pnpm --filter @mml-bookmark/db migration:create",
     "db:migration:up": "pnpm --filter @mml-bookmark/db migration:up",
     "db:migration:down": "pnpm --filter @mml-bookmark/db migration:down",
     "db:migration:list": "pnpm --filter @mml-bookmark/db migration:list",
+    "db:migration:check": "pnpm --filter @mml-bookmark/db migration:check",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:integration": "pnpm --filter @mml-bookmark/integration test"
@@ -25,6 +28,7 @@
     "@vitest/coverage-v8": "^5.0.4",
     "eslint": "^9.39.5",
     "eslint-plugin-react-hooks": "^7.1.1",
+    "supabase": "^2.121.0",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.71.2",
     "vitest": "^5.0.4"

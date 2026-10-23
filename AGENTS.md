@@ -25,7 +25,8 @@ These are fixed decisions. Do not swap a library or add an alternative to one of
 | Styling, public pages | Tailwind CSS 4 |
 | Styling, product and admin pages | shadcn/ui (Base UI primitives, `base-nova` style) on Tailwind 4 |
 | Unit tests | Vitest 5 + `@vitest/coverage-v8` (root dev dependency) |
-| Integration tests | Vitest + Testcontainers (`@testcontainers/postgresql`) + agent-browser, in `packages/integration` |
+| Local stack | Supabase CLI (`supabase` root dev dependency, Docker): PostgreSQL 17, Auth, Mailpit; same stack for dev, integration tests and CI (D50) |
+| Integration tests | Vitest + the Supabase CLI local stack + agent-browser, in `packages/integration` |
 | Package manager | pnpm workspaces (version pinned in root `packageManager`) |
 | Runtime | Node.js >= 22.17 |
 
@@ -37,7 +38,7 @@ packages/
 ├── core/  @mml-bookmark/core  Reusable, framework-agnostic code: DI container helpers, shared types, domain services
 ├── db/    @mml-bookmark/db    Data layer: MikroORM config, entities, repositories, migrations, ORM bootstrap
 ├── ui/    @mml-bookmark/ui    Reusable UI components (shadcn/ui), `cn` helper, admin theme CSS
-├── integration/ @mml-bookmark/integration  Integration tests only: Testcontainers PostgreSQL + agent-browser against a production build
+├── integration/ @mml-bookmark/integration  Integration tests only: local Supabase stack + agent-browser against a production build
 └── extension/   @mml-bookmark/extension    (planned: clients spec) Chrome extension, loaded unpacked (D57); calls `/api/v1` with a Supabase Bearer token
 ```
 
@@ -75,7 +76,7 @@ Create a concept folder only when its first file is added. `core` cannot import 
 
 - **Every new feature is covered 100% by unit tests** (statements, branches, functions, lines). `pnpm test:coverage` enforces it through thresholds in `vitest.config.mts`; CI fails below 100%. Do not lower a threshold, add coverage excludes, or write tests that execute code without asserting behavior to get past the gate. Code that cannot be unit tested needs a refactor (see `database-status.tsx`, split out of the admin page for this reason), not an exclusion.
 - Unit tests sit next to the code as `<name>.test.ts(x)`. Pure logic runs in Node; React components render with `renderToStaticMarkup`; Next.js, container and database edges are mocked at the module boundary (`vi.mock`). A bug fix ships a test that fails without the fix.
-- **Integration tests** live only in `packages/integration/tests/`. They run against a real production build, a PostgreSQL container started by Testcontainers (`postgres:17-alpine`, migrations applied through `pnpm db:migration:up`) and a real browser driven through the agent-browser CLI (`src/browser.ts`). Add an integration test for every new page and for every flow that crosses the database. They do not count toward unit coverage.
+- **Integration tests** live only in `packages/integration/tests/`. They run against a real production build, the local Supabase stack (started if it is not running, then wiped with `supabase db reset`; migrations applied through `pnpm db:migration:up` and verified with `pnpm db:migration:check`) and a real browser driven through the agent-browser CLI (`src/browser.ts`). Add an integration test for every new page and for every flow that crosses the database. They do not count toward unit coverage.
 - **CI** (`.github/workflows/ci.yml`) runs on every pull request, as separate jobs: lint, typecheck, build (without a database), unit tests with the coverage gate, integration tests. All five must pass to merge. The build job must pass with no `DATABASE_URL`.
 - Never skip or `.only` a test in a committed change.
 
@@ -102,12 +103,13 @@ Create a concept folder only when its first file is added. `core` cannot import 
 ## Database (MikroORM + PostgreSQL)
 
 - **Entities** live in `packages/db/src/entities/`, defined with `defineEntity` (no decorators, no `reflect-metadata`). Export each one from `packages/db/src/entities/index.ts`; the ORM config registers that list explicitly (no folder discovery).
+- **Supabase owns other schemas** (`auth`, `storage`, `realtime`, `vault`, …). `SUPABASE_SCHEMAS` in `packages/db/src/config.ts` keeps them out of the schema diff; without it `migration:create` proposes dropping `auth`. When `pnpm db:migration:check` reports a change you did not make, add the new Supabase schema to that list. Never write to the `auth` schema and never reference it by foreign key.
 - **Schema changes go through migrations only.** Change the entity, then `pnpm db:migration:create`, review the generated SQL, commit it with the entity change. Never use `schema:update`/`schema:fresh` against a shared or production database. Never edit a migration that has been merged; add a new one.
 - **Connection pool** is configured in `packages/db/src/config.ts` from `DB_POOL_MIN` / `DB_POOL_MAX`. Do not create extra `MikroORM` instances; use `getOrm()` from `@mml-bookmark/db`, which caches one connected instance per process (it survives Next.js HMR). MikroORM 7's `init()` does not connect by itself; `getOrm()` calls `connect()`.
 - **One `EntityManager` fork per request.** Never use the global `orm.em` in request code. Resolve `em` from a request-scoped container (see DI) or call `orm.em.fork()` yourself in scripts.
 - Database access is server-only. Never import `@mml-bookmark/db` from a Client Component.
 - **Server Components that query the database** must `await connection()` (from `next/server`) before the query and render inside `<Suspense>`. With `cacheComponents` enabled, Next.js cannot see DB calls and would otherwise try to prerender them. Use `"use cache"` only for data that is safe to share across requests.
-- Configuration comes from env vars (`DATABASE_URL`, `DB_POOL_MIN`, `DB_POOL_MAX`, `DB_DEBUG`) in one `.env` at the repo root; see `.env.example`. `next.config.ts` and the MikroORM CLI config both load it explicitly (Next.js alone only reads `packages/app/.env`). Never commit `.env` or real credentials.
+- Configuration comes from env vars (`DATABASE_URL`, `DB_POOL_MIN`, `DB_POOL_MAX`, `DB_DEBUG`) in one `.env` at the repo root; see `.env.example`. Locally `DATABASE_URL` is the Supabase stack's `DB_URL` (`pnpm exec supabase status -o env`). `next.config.ts` and the MikroORM CLI config both load it explicitly (Next.js alone only reads `packages/app/.env`). Never commit `.env` or real credentials.
 
 ## Dependency injection (Awilix)
 
@@ -125,16 +127,17 @@ Run from the repo root.
 | Command | What it does |
 |---|---|
 | `pnpm install` | Install all workspace dependencies |
-| `docker compose up -d` | Start local PostgreSQL |
+| `pnpm supabase:start` / `pnpm supabase:stop` | Start / stop the local Supabase stack (Docker). `pnpm exec supabase status -o env` prints its URLs and keys |
 | `pnpm dev` | Next.js dev server (`packages/app`) |
 | `pnpm build` / `pnpm start` | Production build / server |
 | `pnpm typecheck` | `tsc --noEmit` in every package (app runs `next typegen` first) |
 | `pnpm lint` | ESLint in every package |
 | `pnpm test` / `pnpm test:coverage` | Unit tests / unit tests with the 100% coverage gate |
-| `pnpm test:integration` | Builds the app, starts PostgreSQL in Docker, applies migrations, runs browser tests (needs Docker; first run: `pnpm --filter @mml-bookmark/integration browser:install`) |
+| `pnpm test:integration` | Builds the app, starts (or reuses) the local Supabase stack and **wipes its data** with `supabase db reset`, applies and checks migrations, runs browser tests (needs Docker; first run: `pnpm --filter @mml-bookmark/integration browser:install`) |
 | `pnpm db:migration:create` | Generate a migration from entity changes |
 | `pnpm db:migration:up` / `db:migration:down` | Apply / revert migrations |
 | `pnpm db:migration:list` | List applied migrations |
+| `pnpm db:migration:check` | Fail if entities and migrations disagree |
 
 Before calling a task done: `pnpm typecheck && pnpm lint && pnpm build && pnpm test:coverage` must pass. Run `pnpm test:integration` too when the change touches routes, pages, the container or the database.
 

@@ -23,6 +23,10 @@ describe("createOrmConfig", () => {
     expect(config.entities).toEqual([]);
   });
 
+  it("keeps Supabase-owned schemas out of the schema diff", () => {
+    expect(createOrmConfig().schemaGenerator?.ignoreSchema).toEqual(expect.arrayContaining(["auth", "storage", "realtime", "vault", "extensions"]));
+  });
+
   it("reads pool sizes and debug from the environment", () => {
     vi.stubEnv("DB_POOL_MIN", "1");
     vi.stubEnv("DB_POOL_MAX", "4");

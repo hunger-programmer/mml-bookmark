@@ -7,6 +7,3 @@ allowBuilds:
   agent-browser: true
   # Optional native speed-ups / unused in this repo: JS fallbacks are fine.
   esbuild: false
-  cpu-features: false
-  ssh2: false
-  protobufjs: false
