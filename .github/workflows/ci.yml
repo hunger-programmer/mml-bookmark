@@ -81,7 +81,7 @@ jobs:
           if-no-files-found: ignore
 
   integration:
-    name: Integration tests (Testcontainers + agent-browser)
+    name: Integration tests (Supabase CLI + agent-browser)
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -98,5 +98,6 @@ jobs:
           path: ~/.agent-browser
           key: agent-browser-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
       - run: pnpm --filter @mml-bookmark/integration browser:install -- --with-deps
-      # Builds the app, starts PostgreSQL in a container, applies migrations, starts the server, drives it with agent-browser.
+      # Builds the app, starts the local Supabase stack (pinned `supabase` dev dependency, Docker), resets it,
+      # applies and checks migrations, starts the server, drives it with agent-browser.
       - run: pnpm test:integration

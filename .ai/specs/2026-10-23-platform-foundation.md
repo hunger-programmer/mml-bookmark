@@ -467,3 +467,10 @@ These are manual steps; the founder runs them with the checklist in the PR.
   - Deploy only after a successful migration; previews off.
   - Docs edits move into the phase that adds their tooling.
 - 2026-10-23 — Spec approved, including the review changes above (Paweł Wójcik). Brief D53 row now points here.
+- 2026-10-23 — Phase 2 deviations, found while implementing (author; within the approved direction):
+  - **Added:** `SUPABASE_SCHEMAS` (`schemaGenerator.ignoreSchema` in `packages/db/src/config.ts`). Against the Supabase database, MikroORM's diff proposed `drop schema "auth"`, `storage`, `realtime`, `vault` and their types, so the first `migration:create` would have generated SQL that wipes Supabase Auth.
+  - **Added:** `pnpm db:migration:check`, run by the integration setup after migrating. It fails on entity/migration drift and on any new Supabase schema missing from the list.
+  - **Changed:** no `allowBuilds` entry for `supabase`. The npm package ships the binary as platform packages with no build script.
+  - **Changed:** no unit tests for `packages/integration/src/supabase.ts`. That package is excluded from unit coverage by `vitest.config.mts` and verified by running the integration suite (warm and cold stack).
+  - **Changed:** CI uses the pinned `supabase` dev dependency instead of `supabase/setup-cli`, so local and CI run the same CLI version.
+- 2026-10-23 — Constraint on Phases 3 and 5: MikroORM 7.2 manages RLS, policies and triggers from entity metadata. Hand-written `enable row level security` or triggers in a migration that the metadata doesn't declare can be reverted by a later diff. Declare RLS and the audit triggers in the entity metadata, or set `ignorePolicies`/`ignoreTriggers`, and prove it with `pnpm db:migration:check` after the migration.

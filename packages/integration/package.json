@@ -10,9 +10,7 @@
     "test": "vitest run"
   },
   "devDependencies": {
-    "@testcontainers/postgresql": "^12.2.1",
     "agent-browser": "^0.39.1",
-    "testcontainers": "^12.2.1",
     "vitest": "^5.0.4"
   }
 }

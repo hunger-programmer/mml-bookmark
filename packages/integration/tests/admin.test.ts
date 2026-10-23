@@ -22,7 +22,7 @@ describe("admin panel", () => {
     expect(snapshot).toContain('button "shadcn/ui button"');
   });
 
-  it("reports the database as connected (real PostgreSQL from testcontainers)", async () => {
+  it("reports the database as connected (local Supabase PostgreSQL)", async () => {
     await expect.poll(() => browser.text(), { timeout: 15_000 }).toContain("Database: connected");
   });
 });

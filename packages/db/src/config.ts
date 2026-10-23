@@ -12,6 +12,29 @@ function intFromEnv(name: string, fallback: number): number {
 }
 
 /**
+ * Schemas Supabase owns. Without this list the schema diff (`migration:create`,
+ * `migration:check`) proposes dropping them, including `auth`. The first group exists in
+ * the local CLI stack; the second only on hosted projects or with extra extensions.
+ */
+export const SUPABASE_SCHEMAS = [
+  "_realtime",
+  "auth",
+  "extensions",
+  "graphql",
+  "graphql_public",
+  "realtime",
+  "storage",
+  "supabase_functions",
+  "vault",
+  "cron",
+  "net",
+  "pgbouncer",
+  "pgsodium",
+  "pgsodium_masks",
+  "supabase_migrations",
+] as const;
+
+/**
  * Runtime ORM config shared by the app and the CLI. Reads env at call time,
  * so callers load `.env` first.
  */
@@ -31,6 +54,7 @@ export function createOrmConfig(overrides: Options = {}): Options {
     // No entities exist yet; drop this once the first one is added.
     discovery: { warnWhenNoEntities: false },
     debug: process.env.DB_DEBUG === "true",
+    schemaGenerator: { ignoreSchema: [...SUPABASE_SCHEMAS] },
     ...overrides,
   });
 }

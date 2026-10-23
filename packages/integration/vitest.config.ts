@@ -1,6 +1,6 @@
 import { defineConfig } from "vitest/config";
 
-// Integration tests: a real production build, a real PostgreSQL (testcontainers) and a real browser
+// Integration tests: a real production build, the local Supabase stack (Supabase CLI) and a real browser
 // (agent-browser). Slow by nature, so they run in their own CI job and not with the unit tests.
 export default defineConfig({
   test: {

@@ -59,7 +59,7 @@ Code is grouped by concept (`auth`, `admin`, `bookmarks`, `recipes`, `extraction
 ### Testing and CI
 
 - `pnpm test` / `pnpm test:coverage`: Vitest unit tests next to the code, 100% coverage gate.
-- `pnpm test:integration`: builds the app, starts PostgreSQL in Docker (Testcontainers), runs migrations, and drives the app with agent-browser (`packages/integration`). First run: `pnpm --filter @mml-bookmark/integration browser:install`.
+- `pnpm test:integration`: builds the app, starts (or reuses) the local Supabase stack and wipes its data, runs and checks migrations, and drives the app with agent-browser (`packages/integration`). First run: `pnpm --filter @mml-bookmark/integration browser:install`.
 - GitHub Actions (`.github/workflows/ci.yml`) runs lint, typecheck, build, unit and integration jobs on every pull request.
 
 ### Request flow
@@ -100,7 +100,7 @@ Requirements: Node.js >= 22.17, Docker.
 corepack enable                 # provides the pinned pnpm version
 pnpm install
 cp .env.example .env            # one .env at the repo root, used by the app and the CLI
-docker compose up -d            # PostgreSQL on localhost:5432
+pnpm supabase:start             # local Supabase (PostgreSQL 17 on 127.0.0.1:54322, Auth, Mailpit on :54324)
 pnpm db:migration:up
 pnpm dev                        # http://localhost:3000, admin at /admin
 ```
@@ -110,12 +110,14 @@ pnpm dev                        # http://localhost:3000, admin at /admin
 | Command | What it does |
 |---|---|
 | `pnpm dev` | Next.js dev server |
+| `pnpm supabase:start` / `pnpm supabase:stop` | Start / stop the local Supabase stack |
 | `pnpm build` / `pnpm start` | Production build / server |
 | `pnpm typecheck` | Type-check every package |
 | `pnpm lint` | Lint every package |
 | `pnpm db:migration:create` | Generate a migration from entity changes |
 | `pnpm db:migration:up` / `pnpm db:migration:down` | Apply / revert migrations |
 | `pnpm db:migration:list` | List applied migrations |
+| `pnpm db:migration:check` | Fail if entities and migrations disagree |
 | `pnpm --filter @mml-bookmark/ui dlx shadcn@latest add <component>` | Add a shadcn/ui component to the ui package |
 
 ## Working with AI agents
