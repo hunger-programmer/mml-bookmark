@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createOrmConfig } from "./config";
+import { User } from "./entities/auth/user.entity";
 
 describe("createOrmConfig", () => {
   beforeEach(() => {
@@ -20,7 +21,7 @@ describe("createOrmConfig", () => {
     expect(config.clientUrl).toBe("postgres://u:p@localhost:5432/db");
     expect(config.pool).toEqual({ min: 2, max: 10 });
     expect(config.debug).toBe(false);
-    expect(config.entities).toEqual([]);
+    expect(config.entities).toEqual([User]);
   });
 
   it("keeps Supabase-owned schemas out of the schema diff", () => {

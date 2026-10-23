@@ -4,8 +4,8 @@ export interface Logger {
   error(message: string, context?: Record<string, unknown>): void;
 }
 
-/** Keys whose values never reach a log line, at any depth. */
-const REDACTED_KEYS = /pass(word)?|token|secret|authorization|cookie|api[-_]?key/i;
+/** Keys whose values never reach a log line, at any depth. `sb-…` are Supabase session cookies (chunked as `sb-…-auth-token.0`). */
+const REDACTED_KEYS = /pass(word)?|token|secret|authorization|cookie|api[-_]?key|^sb-/i;
 const MAX_DEPTH = 5;
 
 function redact(value: unknown, depth = 0): unknown {

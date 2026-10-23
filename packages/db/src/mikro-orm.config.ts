@@ -11,6 +11,8 @@ export default createOrmConfig({
     path: "src/migrations",
     pathTs: "src/migrations",
     emit: "ts",
+    // Unit tests sit next to each migration (`*.test.ts`); they are not migrations.
+    glob: "!(*.d|*.test).{js,ts}",
     transactional: true,
     allOrNothing: true,
   },

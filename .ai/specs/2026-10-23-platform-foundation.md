@@ -473,4 +473,12 @@ These are manual steps; the founder runs them with the checklist in the PR.
   - **Changed:** no `allowBuilds` entry for `supabase`. The npm package ships the binary as platform packages with no build script.
   - **Changed:** no unit tests for `packages/integration/src/supabase.ts`. That package is excluded from unit coverage by `vitest.config.mts` and verified by running the integration suite (warm and cold stack).
   - **Changed:** CI uses the pinned `supabase` dev dependency instead of `supabase/setup-cli`, so local and CI run the same CLI version.
+- 2026-10-23 — Phase 3 deviations and findings (author; within the approved direction):
+  - **Added:** `Session.email`. `/api/v1/me` returns it, and Phase 5's audit snapshot (`actor_email`) needs it.
+  - **Added:** `alter default privileges for role postgres in schema public revoke all on tables/sequences/functions from anon, authenticated`, next to the per-table revoke. Verified locally: without it a new table in `public` grants `anon` every privilege. Later migrations no longer have to remember the revoke.
+  - **Added:** `parseWith(schema, input)` in `core/http`, which maps Zod issues to `ValidationError.fields`.
+  - **Added:** the migrations glob skips `*.test.ts`, because a unit test next to the migration was loaded as a migration.
+  - **Changed:** `getToken` returns `null` until the clients spec adds personal tokens.
+  - **Changed:** the users table has no `created_at` `onCreate`. Rows are inserted with `insert … on conflict do nothing`, and the database default `now()` fills the column.
+  - **Limit:** the refresh integration test proves the end-to-end refresh: an expired cookie session gets a `200` and rotated httpOnly cookies. It cannot prove the handler read the forwarded cookies rather than refreshing again itself, because Supabase's 10 s refresh-token reuse window would let a second refresh succeed too. The forwarding itself is covered by the `proxy.ts` unit test.
 - 2026-10-23 — Constraint on Phases 3 and 5: MikroORM 7.2 manages RLS, policies and triggers from entity metadata. Hand-written `enable row level security` or triggers in a migration that the metadata doesn't declare can be reverted by a later diff. Declare RLS and the audit triggers in the entity metadata, or set `ignorePolicies`/`ignoreTriggers`, and prove it with `pnpm db:migration:check` after the migration.

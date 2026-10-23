@@ -1,9 +1,16 @@
 import { run } from "./commands";
 import { repoRoot } from "./paths";
 
-/** The local Supabase stack, from `supabase status -o env`. Auth keys are added when a test needs them. */
-export interface TestSupabase {
+/** URLs and keys of the local stack, as tests and the app server need them. */
+export interface SupabaseEndpoints {
   dbUrl: string;
+  apiUrl: string;
+  publishableKey: string;
+  secretKey: string;
+}
+
+/** The local Supabase stack, from `supabase status -o env`. */
+export interface TestSupabase extends SupabaseEndpoints {
   stop(): Promise<void>;
 }
 
@@ -46,6 +53,9 @@ export async function startSupabase(): Promise<TestSupabase> {
   const values = parseStatusEnv(await supabase(["status", "-o", "env"]));
   return {
     dbUrl: required(values, "DB_URL"),
+    apiUrl: required(values, "API_URL"),
+    publishableKey: required(values, "PUBLISHABLE_KEY"),
+    secretKey: required(values, "SECRET_KEY"),
     stop: async () => {
       if (!wasRunning) await run("pnpm", ["supabase:stop"], { cwd: repoRoot });
     },

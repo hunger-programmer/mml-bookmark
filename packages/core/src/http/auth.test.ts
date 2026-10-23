@@ -1,9 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { ForbiddenError, UnauthorizedError } from "./errors";
-import { CSRF_HEADER, assertOwns, requireAdmin, requireSession, requireToken, type SessionReader } from "./auth";
+import { AccountSuspendedError, ForbiddenError, UnauthorizedError } from "./errors";
+import {
+  CSRF_HEADER,
+  assertActive,
+  assertOwns,
+  requireAdmin,
+  requireCsrf,
+  requireSession,
+  requireToken,
+  type Session,
+  type SessionReader,
+} from "./auth";
 
+const cookieSession: Session = { userId: "u1", email: "u1@example.com", isAdmin: false, suspended: false, via: "cookie" };
 const reader = (overrides: Partial<SessionReader> = {}): SessionReader => ({
-  getSession: async () => ({ userId: "u1", isAdmin: false }),
+  getSession: async () => cookieSession,
   getToken: async () => ({ userId: "u1", scope: "save" }),
   ...overrides,
 });
@@ -11,7 +22,7 @@ const req = (method = "GET", headers: Record<string, string> = {}) => new Reques
 
 describe("requireSession", () => {
   it("returns the session for a safe method without a CSRF header", async () => {
-    await expect(requireSession(reader(), req("GET"))).resolves.toEqual({ userId: "u1", isAdmin: false });
+    await expect(requireSession(reader(), req("GET"))).resolves.toEqual(cookieSession);
     await expect(requireSession(reader(), req("head"))).resolves.toBeDefined();
   });
 
@@ -21,6 +32,19 @@ describe("requireSession", () => {
     await expect(requireSession(reader(), req("POST", { [CSRF_HEADER]: "1" }))).resolves.toBeDefined();
   });
 
+  it("does not require the CSRF header for Bearer sessions", async () => {
+    const bearer = reader({ getSession: async () => ({ ...cookieSession, via: "bearer" }) });
+    await expect(requireSession(bearer, req("POST"))).resolves.toMatchObject({ via: "bearer" });
+  });
+
+  it("rejects a suspended account, after the CSRF check", async () => {
+    const suspended = reader({ getSession: async () => ({ ...cookieSession, suspended: true }) });
+    await expect(requireSession(suspended, req("GET"))).rejects.toBeInstanceOf(AccountSuspendedError);
+    await expect(requireSession(suspended, req("POST"))).rejects.toBeInstanceOf(ForbiddenError);
+    const suspendedBearer = reader({ getSession: async () => ({ ...cookieSession, via: "bearer", suspended: true }) });
+    await expect(requireSession(suspendedBearer, req("POST"))).rejects.toMatchObject({ code: "account_suspended", status: 403 });
+  });
+
   it("is unauthorized without a session", async () => {
     await expect(requireSession(reader({ getSession: async () => null }), req())).rejects.toBeInstanceOf(UnauthorizedError);
   });
@@ -28,6 +52,22 @@ describe("requireSession", () => {
   it("fails closed when the reader throws", async () => {
     const broken = reader({ getSession: async () => { throw new Error("store down"); } });
     await expect(requireSession(broken, req())).rejects.toBeInstanceOf(UnauthorizedError);
+  });
+});
+
+describe("requireCsrf", () => {
+  it("rejects unsafe methods without the header and allows safe ones", () => {
+    expect(() => requireCsrf(req("POST"))).toThrow(ForbiddenError);
+    expect(() => requireCsrf(req("PATCH", { [CSRF_HEADER]: "yes" }))).toThrow(ForbiddenError);
+    expect(() => requireCsrf(req("POST", { [CSRF_HEADER]: "1" }))).not.toThrow();
+    expect(() => requireCsrf(req("GET"))).not.toThrow();
+  });
+});
+
+describe("assertActive", () => {
+  it("throws only for a suspended principal", () => {
+    expect(() => assertActive({ suspended: true })).toThrow(AccountSuspendedError);
+    expect(() => assertActive({ suspended: false })).not.toThrow();
   });
 });
 
@@ -52,8 +92,8 @@ describe("requireToken", () => {
 
 describe("requireAdmin", () => {
   it("allows admins and forbids everyone else", () => {
-    expect(() => requireAdmin({ userId: "a", isAdmin: true })).not.toThrow();
-    expect(() => requireAdmin({ userId: "u", isAdmin: false })).toThrow(ForbiddenError);
+    expect(() => requireAdmin({ isAdmin: true })).not.toThrow();
+    expect(() => requireAdmin({ isAdmin: false })).toThrow(ForbiddenError);
   });
 });
 
