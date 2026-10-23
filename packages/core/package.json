@@ -6,13 +6,15 @@
   "exports": {
     ".": "./src/index.ts",
     "./http": "./src/http/index.ts",
-    "./events": "./src/events/index.ts"
+    "./events": "./src/events/index.ts",
+    "./auth": "./src/services/auth/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "lint": "eslint ."
   },
   "dependencies": {
-    "awilix": "^13.0.5"
+    "awilix": "^13.0.5",
+    "zod": "^4.6.7"
   }
 }

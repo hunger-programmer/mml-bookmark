@@ -2,6 +2,7 @@ import { createAppContainer } from "@mml-bookmark/core";
 import type { MikroORM } from "@mikro-orm/postgresql";
 import { describe, expect, it, vi } from "vitest";
 import { registerDb } from "./di";
+import { MikroUserRepository } from "./repositories/auth/user.repository";
 
 function fakeOrm() {
   const fork = vi.fn(() => ({ forked: true }));
@@ -25,5 +26,16 @@ describe("registerDb", () => {
     expect(a.cradle.em).toBe(a.cradle.em);
     expect(a.cradle.em).not.toBe(b.cradle.em);
     expect(fork).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("registerDb repositories", () => {
+  it("registers a scoped user repository on the scope's EntityManager", () => {
+    const { orm } = fakeOrm();
+    const container = createAppContainer();
+    registerDb(container, orm);
+    const scope = container.createScope();
+    expect(scope.cradle.userRepository).toBeInstanceOf(MikroUserRepository);
+    expect(scope.cradle.userRepository).toBe(scope.cradle.userRepository);
   });
 });

@@ -1,7 +1,9 @@
 import "server-only";
 import { cache } from "react";
 import { createAppContainer, registerCore, type AppContainer } from "@mml-bookmark/core";
+import { registerAuth } from "@mml-bookmark/core/auth";
 import { getOrm, registerDb } from "@mml-bookmark/db";
+import { registerAppAuth } from "./auth/register";
 
 // Composition root: the only place that registers into the root container.
 
@@ -13,6 +15,8 @@ async function buildContainer(): Promise<AppContainer> {
   const container = createAppContainer();
   registerCore(container);
   registerDb(container, await getOrm());
+  registerAuth(container);
+  registerAppAuth(container);
   return container;
 }
 

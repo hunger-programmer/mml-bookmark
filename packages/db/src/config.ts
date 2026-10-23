@@ -51,8 +51,6 @@ export function createOrmConfig(overrides: Options = {}): Options {
       min: intFromEnv("DB_POOL_MIN", 2),
       max: intFromEnv("DB_POOL_MAX", 10),
     },
-    // No entities exist yet; drop this once the first one is added.
-    discovery: { warnWhenNoEntities: false },
     debug: process.env.DB_DEBUG === "true",
     schemaGenerator: { ignoreSchema: [...SUPABASE_SCHEMAS] },
     ...overrides,

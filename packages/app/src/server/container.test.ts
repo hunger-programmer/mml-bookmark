@@ -23,6 +23,8 @@ describe("composition root", () => {
     expect(registerDb).toHaveBeenCalledWith(first, { fake: "orm" });
     expect(first.cradle.logger).toBeDefined();
     expect(first.cradle.eventBus).toBeDefined();
+    expect(first.hasRegistration("userService")).toBe(true);
+    expect(first.hasRegistration("sessionReader")).toBe(true);
   });
 
   it("clears the cached promise on failure so the next call retries", async () => {

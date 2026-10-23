@@ -12,5 +12,6 @@ describe("MikroORM CLI config", () => {
     expect(loadRootEnv).toHaveBeenCalledOnce();
     expect(config.extensions).toHaveLength(1);
     expect(config.migrations).toMatchObject({ path: "src/migrations", emit: "ts", transactional: true, allOrNothing: true });
+    expect(config.migrations?.glob).toBe("!(*.d|*.test).{js,ts}");
   });
 });

@@ -34,6 +34,13 @@ export class ForbiddenError extends AppError {
   }
 }
 
+/** A signed-in user whose account an admin suspended (D47). */
+export class AccountSuspendedError extends AppError {
+  constructor(message = "This account is suspended.") {
+    super("account_suspended", 403, message);
+  }
+}
+
 export class NotFoundError extends AppError {
   constructor(message = "Not found.") {
     super("not_found", 404, message);

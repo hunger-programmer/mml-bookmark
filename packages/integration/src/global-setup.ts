@@ -1,10 +1,11 @@
 import type { TestProject } from "vitest/node";
 import { buildApp, checkSchema, migrate, startApp } from "./app-server";
-import { startSupabase } from "./supabase";
+import { startSupabase, type SupabaseEndpoints } from "./supabase";
 
 declare module "vitest" {
   export interface ProvidedContext {
     baseUrl: string;
+    supabase: SupabaseEndpoints;
   }
 }
 
@@ -19,8 +20,9 @@ export default async function setup(project: TestProject): Promise<() => Promise
   try {
     await migrate(supabase.dbUrl);
     await checkSchema(supabase.dbUrl);
-    const app = await startApp(supabase.dbUrl);
+    const app = await startApp(supabase);
     project.provide("baseUrl", app.baseUrl);
+    project.provide("supabase", { dbUrl: supabase.dbUrl, apiUrl: supabase.apiUrl, publishableKey: supabase.publishableKey, secretKey: supabase.secretKey });
     return async () => {
       await app.stop();
       await supabase.stop();

@@ -3,6 +3,7 @@ import { createRequire } from "node:module";
 import { createServer } from "node:net";
 import { appDir, repoRoot } from "./paths";
 import { run } from "./commands";
+import type { SupabaseEndpoints } from "./supabase";
 
 const STARTUP_TIMEOUT_MS = 60_000;
 const POLL_INTERVAL_MS = 250;
@@ -56,15 +57,21 @@ export async function checkSchema(databaseUrl: string): Promise<void> {
   await run("pnpm", ["db:migration:check"], { cwd: repoRoot, env: { DATABASE_URL: databaseUrl } });
 }
 
-/** Starts `next start` on a free port against the given database and waits until it is healthy. */
-export async function startApp(databaseUrl: string): Promise<RunningApp> {
+/** Starts `next start` on a free port against the local Supabase stack and waits until it is healthy. */
+export async function startApp(supabase: SupabaseEndpoints): Promise<RunningApp> {
   const port = await freePort();
   const baseUrl = `http://127.0.0.1:${port}`;
   const nextBin = createRequire(`${appDir}/package.json`).resolve("next/dist/bin/next");
   let output = "";
   const child = spawn(process.execPath, [nextBin, "start", "-p", String(port), "-H", "127.0.0.1"], {
     cwd: appDir,
-    env: { ...process.env, DATABASE_URL: databaseUrl, NODE_ENV: "production" },
+    env: {
+      ...process.env,
+      DATABASE_URL: supabase.dbUrl,
+      SUPABASE_URL: supabase.apiUrl,
+      SUPABASE_PUBLISHABLE_KEY: supabase.publishableKey,
+      NODE_ENV: "production",
+    },
   });
   child.stdout.on("data", (chunk: Buffer) => (output += chunk.toString()));
   child.stderr.on("data", (chunk: Buffer) => (output += chunk.toString()));

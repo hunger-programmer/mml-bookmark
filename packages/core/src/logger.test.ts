@@ -35,6 +35,12 @@ describe("createLogger", () => {
     });
   });
 
+  it("redacts Supabase session cookies by name", () => {
+    const { log, last } = capture();
+    log.info("x", { "sb-127-chunk.0": "base64-abc", "sb-ref-auth-token": "base64-def", sbFine: 1 });
+    expect(last()).toMatchObject({ "sb-127-chunk.0": "[redacted]", "sb-ref-auth-token": "[redacted]", sbFine: 1 });
+  });
+
   it("serialises errors as name, message and stack", () => {
     const { log, last } = capture();
     log.error("failed", { error: new TypeError("bad") });
