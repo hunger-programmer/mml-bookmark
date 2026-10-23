@@ -1,15 +1,15 @@
 # mml-bookmark — Engineering Standards & Package Structure
 
-Date: 2026-10-14
-Status: active; foundation (section 5 steps 1–4) implemented 2026-10-14 (supersedes the earlier template that described a different product, a mentor-booking marketplace)
+Date: 2026-10-14; rewritten 2026-10-23 for the product brief (D39) and the platform-foundation spec
+Status: active. The 2026-10-14 version described the superseded bookmark-portal concept (collections, tags, public sharing, import, in-house auth); it is in git history.
 
-Grounded in three sources, in this order of authority:
+Grounded in these sources, in this order of authority:
 
 1. `AGENTS.md` — fixed stack and package rules. Where this document seems to disagree, `AGENTS.md` wins.
-2. The bookmark-portal concept in `.ai/mockups/funtionality/` — 18 screens, 16 use cases, one REST surface (`docs/04-screen-specifications.md` is the API source of truth).
-3. The code that exists today (`packages/{app,core,db,ui}`, Awilix container, MikroORM bootstrap, shadcn `button`).
+2. `.ai/specs/product-brief.md` — scope, business rules (R*), non-goals (N*), decisions (D*); then the active specs in `.ai/specs/` (first: `2026-10-23-platform-foundation.md`).
+3. The code that exists today (`packages/{app,core,db,ui,integration}`).
 
-Decisions already taken: **domain sub-folders inside the existing layered packages** (no module runtime), **keep Awilix**, **no new package** until a second consumer needs one.
+Decisions already taken: **domain sub-folders inside the existing layered packages** (no module runtime), **keep Awilix**, **no new package** until a second consumer needs one (exception: `packages/extension`, D49).
 
 ---
 
@@ -17,38 +17,37 @@ Decisions already taken: **domain sub-folders inside the existing layered packag
 
 ### Domain concepts
 
-The product has seven concepts. Each one is a same-named folder repeated in the layers that need it.
+Each concept is a same-named folder repeated in the layers that need it.
 
-| Concept | Owns | Screens |
+| Concept | Owns | Source |
 |---|---|---|
-| `auth` | users, sessions, capture tokens | S1, S2, S13, S15 |
-| `bookmarks` | bookmark, status, trash, duplicate check, bulk actions | S3, S4, S5, S7, S14 |
-| `collections` | tree, sharing, public slug | S8, S9, S10 |
-| `tags` | tag list, autocomplete | S3, S7 |
-| `enrichment` | page fetch, AI classification, suggestions, quota, job state | S5, S15 (AI), S17 |
-| `search` | full-text query, suggestions | S6 |
-| `transfer` | import, export | S12 |
+| `auth` | users (keyed by the Supabase id), sessions, personal tokens | D46, D47, R23 |
+| `admin` | suspension, the append-only audit table, read-only impersonation | D42, D51, R20 |
+| `bookmarks` | bookmark, category (at most one, or Uncategorised), note, duplicate check, deletion | R12, R16, D37, D44 |
+| `recipes` | recipe cards (several per bookmark), partial-recipe gaps, user edits | R02, R05, R15, D31 |
+| `extraction` | job table, categorisation, source evidence, captions and transcripts, model calls, retries, daily limit | D48, R14, R17–R19, R21, R22 |
+| `search` | text search over titles, ingredients and notes | D32 |
 
-`admin` is not a concept: it is a route group (S16–S18) that calls the same services.
+Removed with the old concept (N12): `collections`, `tags`, `transfer` (import/export), public share pages, trash, the AI suggestion inbox.
 
 ### Naming
 
 | Element | Convention | Example |
 |---|---|---|
 | Package | `packages/<name>`, `@mml-bookmark/<name>` | `@mml-bookmark/core` |
-| Concept folder | lowercase plural noun, same name in every layer | `bookmarks`, `collections` |
+| Concept folder | lowercase plural noun (or `auth`/`admin`/`extraction`/`search`), same name in every layer | `bookmarks`, `recipes` |
 | Entity | PascalCase singular, `defineEntity`, file `<name>.entity.ts` | `Bookmark` → `db/src/entities/bookmarks/bookmark.entity.ts` |
-| DB table / column | snake_case, plural table; camelCase property maps to snake_case column | `bookmarks.collection_id` |
+| DB table / column | snake_case, plural table; camelCase property maps to snake_case column | `bookmarks.user_id` |
 | Repository implementation | `<Name>Repository`, file `<name>.repository.ts`, in `db` | `db/src/repositories/bookmarks/bookmark.repository.ts` |
 | Repository port | interface `<Name>Repository`, file `<name>-repository.port.ts`, in `core` | `core/src/services/bookmarks/bookmark-repository.port.ts` |
 | Service | PascalCase + `Service`, file `<name>.service.ts` | `BookmarkService` |
-| External port | PascalCase noun, `.port.ts` | `PageFetcher`, `EnrichmentProvider` |
-| Adapter | under `adapters/` next to its port | `adapters/mock-enrichment-provider.ts` |
+| External port | PascalCase noun, `.port.ts` | `PageFetcher`, `ModelProvider`, `AuthAdmin` |
+| Adapter | under `adapters/` next to its port, or in `app/src/server/` when it needs a vendor SDK | `app/src/server/auth/supabase-auth-admin.ts` |
 | DI cradle key | camelCase of the class | `bookmarkService`, `bookmarkRepository` |
-| Validation schema | camelCase + `Schema`, file `<name>-<action>.schema.ts`, shared by client and server | `bookmarkCreateSchema` |
-| Event ID | `concept.entity.action`, past tense | `bookmarks.bookmark.created`, `enrichment.job.failed` |
-| API route | `app/api/v1/<concept>/.../route.ts`, URLs as in doc 04 | `api/v1/bookmarks/[id]/enrich/route.ts` |
-| Page | `page.tsx`, default export `<Segment>Page` | `inbox/page.tsx` → `InboxPage` |
+| Validation schema | Zod, camelCase + `Schema`, file `<name>-<action>.schema.ts`, shared by client and server | `bookmarkCreateSchema` |
+| Event ID | `concept.entity.action`, past tense | `bookmarks.bookmark.created`, `extraction.job.failed` |
+| API route | `app/api/v1/<concept>/.../route.ts` | `api/v1/bookmarks/[id]/retry/route.ts` |
+| Page | `page.tsx`, default export `<Segment>Page` | `library/page.tsx` → `LibraryPage` |
 | Domain error | PascalCase + `Error`, extends `AppError` | `DuplicateBookmarkError` |
 | Migration | generated by `pnpm db:migration:create`, never renamed | – |
 
@@ -58,25 +57,24 @@ The product has seven concepts. Each one is a same-named folder repeated in the 
 app ──► ui
 app ──► db ──► core
 app ──► core
+extension ──► core        (planned, clients spec; talks to the server over HTTP only)
 ```
 
-- `core` and `ui` import no internal package. `core` has no React, Next.js or DB driver. `ui` has no data fetching, DI container or `db` import.
-- Only `db` imports `@mikro-orm/*`.
+- `core` and `ui` import no internal package. `core` has no React, Next.js, DB driver or vendor SDK. `ui` has no data fetching, DI container or `db` import.
+- Only `db` imports `@mikro-orm/*`. Only `app/src/server/` imports Supabase SDKs.
 - Consequence for services: `core` cannot import `db`, so a service in `core` depends on a **repository port** declared in `core`, and `db` implements it. Awilix wires them in `app/src/server/container.ts`. This is the same inversion used for external vendors.
 - Imports go through package `exports` only. Each concept area that other packages need gets a subpath export (`@mml-bookmark/core/http`, `@mml-bookmark/core/events`, `@mml-bookmark/core/bookmarks`), added when the first file lands in it.
 
 ### Reusable layers (build once, reuse everywhere)
 
-Without these, every one of the ~40 endpoints and 18 screens re-invents fetch, validation, auth and error handling.
-
 **Server — `packages/core/src/http/`** (framework-agnostic: uses Web `Request`/`Response`, never `NextResponse`)
 
 - `errors.ts` — `AppError` base and `NotFoundError`, `ForbiddenError`, `UnauthorizedError`, `ValidationError`, `ConflictError`, `RateLimitedError`, each with a stable `code`. Services throw these and never build a response.
 - `api-handler.ts` — wraps a route function: maps `AppError` to status plus the error body, logs anything else and returns a generic 500 with no stack. Also exports `json` and `readJson` (malformed body → `ValidationError`).
-- `auth.ts` — `requireSession(reader, request)` (also enforces the CSRF header on unsafe methods), `requireToken(reader, request, 'save' | 'read')`, `requireAdmin(session)` and the generic `assertOwns(session, ownerId)`. They depend on a `SessionReader` port that `app` implements, because the auth mechanism is not chosen yet.
-- `makeCrudRoute` is **not built now**. Introduce it when the second plain CRUD resource (collections, tokens) is implemented and the duplication is visible.
+- `auth.ts` — `requireSession(reader, request)` (enforces the CSRF header for cookie sessions only), `requireToken(reader, request, 'save' | 'read')` for personal tokens, `requireAdmin(session)` and the generic `assertOwns(session, ownerId)`. They depend on a `SessionReader` port. `app` implements it with Supabase: httpOnly cookies for the web, a Supabase Bearer token for the extension (D46). The platform-foundation spec adds `requireCsrf` (unauthenticated writes) and `assertActive` (suspension).
+- `makeCrudRoute` is **not built now**. Introduce it when the second plain CRUD resource is implemented and the duplication is visible.
 
-**Wire format** (source of truth: doc 04 "API conventions")
+**Wire format**
 
 - Success: the resource or `{ items, nextCursor }` as the body, HTTP 2xx.
 - Error: `{ "error": { "code", "message", "fields"? } }`, HTTP 4xx/5xx.
@@ -86,26 +84,26 @@ Without these, every one of the ~40 endpoints and 18 screens re-invents fetch, v
 **UI — `packages/ui/src/`** (presentational: everything arrives through props)
 
 - `components/<shadcn-primitive>.tsx` — added only with `pnpm --filter @mml-bookmark/ui dlx shadcn@latest add`.
-- `components/feedback/{loading-state,error-state,empty-state}.tsx` — the only loading/error/empty renderers; they match the four states every screen in doc 04 specifies.
-- `components/data-table.tsx`, `components/crud-form.tsx` — generic. `CrudForm` takes a `validate(values) => fieldErrors` callback, not a schema, so `ui` stays independent of `core`; `app` adapts the shared schema.
-- `components/<concept>/` — a component tied to one concept's shape (`bookmarks/bookmark-card.tsx`, `bookmarks/ai-badge.tsx`). These receive plain props, not entities.
+- `components/feedback/{loading-state,error-state,empty-state}.tsx` — the only loading/error/empty renderers; every screen reaches all four states.
+- `components/data-table.tsx`, `components/crud-form.tsx` — generic, added with the first list/form screen. `CrudForm` takes a `validate(values) => fieldErrors` callback, not a schema, so `ui` stays independent of `core`; `app` adapts the shared Zod schema.
+- `components/<concept>/` — a component tied to one concept's shape (`recipes/recipe-card.tsx`). These receive plain props, not entities.
 - Used by exactly one page → colocate next to its `page.tsx`; promote on the second consumer.
 
-**Which styling system:** S1, S10, S11 are public pages (`(site)`, Tailwind). S16–S18 are admin (`(admin)`, shadcn). The product app S2–S9, S12–S15 is neither today. Proposal: a third route group `(app)` using shadcn and the `ui` theme, so product and admin share components. **Needs your approval** (see section 6) because it extends AGENTS.md.
+**Which styling system:** public pages in `(site)` (Tailwind); the product UI in `(app)` and admin in `(admin)`, both shadcn with the `ui` theme. Every product screen works on a phone (D54).
 
 ### Architecture
 
 - A concept folder is created only when its first file is added. No empty scaffolding.
-- **External services behind ports in `core`:** `PageFetcher` (HTTP fetch of the saved page), `EnrichmentProvider` (the LLM). The MVP ships a deterministic mock adapter so the app builds and tests run without a key; real adapters are added later without touching callers. No vendor SDK in `core` or `db`.
-- **Enrichment is asynchronous by design** (doc 02, UC2: save returns at once, enrichment follows). Mechanism: an `enrichment_jobs` table in PostgreSQL plus a processor invoked from `after()` (`next/server`) and a retry sweep endpoint. No external queue or worker process in the MVP. Job states match the mockup: `pending → fetching → analysing → ready | failed | pending_quota`. A failed job never deletes or hides the bookmark.
-- **Events:** a small typed in-process emitter in `core/src/events`, registered on the `Cradle`. Used for side effects only (enqueue enrichment on `bookmarks.bookmark.created`, webhook later). Not a queue.
-- **Validation:** shared schemas in `core/src/validators/<concept>/`, imported by the route handler and the form. One schema, two call sites. The library is not fixed by the stack table; Zod is proposed (section 6).
+- **External services behind ports in `core`:** `PageFetcher` (HTTP fetch of a saved page, SSRF-guarded), `ModelProvider` (OpenAI, D38), `AuthAdmin` (Supabase admin calls). Vendor SDKs live only in adapters under `app/src/server/` (or the worker, per the extraction spec). Tests run without keys.
+- **Background processing runs in the worker (D48).** Next.js writes a job row and returns; the worker (Fly.io container, D56) polls the job table and owns categorisation, extraction, captions, Whisper, translation, retries, the daily limit and next-day scheduling. A failed job never deletes or hides the bookmark (R03, R17). Design: the extraction spec.
+- **Events:** a small typed in-process emitter in `core/src/events`, registered on the `Cradle`. Used for in-process side effects only. Not a queue.
+- **Validation:** Zod schemas in `core/src/validators/<concept>/`, imported by the route handler and the form. One schema, two call sites.
 - **Database access:** every Server Component that queries calls `await connection()` and renders inside `<Suspense>`, as AGENTS.md requires. The app must build with no database reachable.
 - **Per-request scope:** routes and pages resolve services from `getRequestScope()`; no global `orm.em`.
-- **Transactions:** check-then-write on shared state runs inside one transaction in the service layer. Concretely: duplicate detection on save, collection move/delete, and accepting a suggestion.
-- **Uniqueness lives in the database:** `unique (user_id, normalized_url)` for non-trashed bookmarks, `unique` public slug, `unique (user_id, parent_id, lower(name))` for collections. An application-level check alone is not enough.
-- **Soft delete:** bookmarks use `trashed_at`; every list query filters it. Purge after 30 days is a sweep, not a trigger.
-- **Search (MVP):** PostgreSQL full-text (`tsvector` generated column plus GIN index) over title, url, summary, note and tags. Semantic search (pgvector) is phase 2 and needs approval.
+- **Transactions:** check-then-write on shared state runs inside one transaction in the service layer: duplicate detection on save (R16), suspension together with its audit event (D51), recipe-card writes that must not overwrite an edited card (R15).
+- **Uniqueness lives in the database:** `unique (user_id, normalized_url)` for bookmarks (R16). An application-level check alone is not enough.
+- **Deletion is hard delete** (D37; trash is out, N12). Deleting a bookmark deletes its recipe cards and source evidence (R18).
+- **Search (MVP):** PostgreSQL full-text (`tsvector` plus GIN index) over titles, recipe ingredients and notes (D32). Semantic search is not planned.
 
 ### Engineering principles
 
@@ -114,32 +112,36 @@ When two pull in different directions, choose the one that keeps the change smal
 - **SRP.** Entity = columns. Repository = queries. Service = business rules. Route = HTTP only (validate → auth → service → body). `BookmarkService` decides whether a URL is a duplicate; it never builds a `Response`, and the route never contains that check.
 - **DRY.** One schema, one error mapper, one fetch wrapper. About to copy a `try/catch` or validation block? Extract it.
 - **Separation of concerns.** Persistence in `db`, rules in `core`, HTTP and rendering in `app`, presentation in `ui`. A page never issues an ORM query itself; it asks a service.
-- **Dependency inversion.** Services depend on ports (`BookmarkRepository`, `PageFetcher`, `EnrichmentProvider`). Awilix binds the implementation at startup.
+- **Dependency inversion.** Services depend on ports (`BookmarkRepository`, `PageFetcher`, `ModelProvider`). Awilix binds the implementation at startup.
 - **Explicit over implicit.** Register every dependency by hand in `container.ts` (no `loadModules`). A new service is one greppable line plus one `Cradle` entry.
-- **YAGNI.** No queue, plugin loader, RBAC, multi-tenancy, webhooks or semantic search in the MVP. The mockup marks phase-2 items as "soon"; they stay out of the code.
+- **YAGNI.** No queue service, plugin loader, RBAC beyond `isAdmin`, multi-tenancy, webhooks or semantic search in the MVP.
 - **Composition over inheritance.** `BookmarkService` composes `BookmarkRepository` and the event emitter; no base `Service` class.
 - **Fail closed.** An error inside an authorization or ownership check is a denial.
-- **Idempotency.** Saving the same URL twice, retrying an enrichment job, and accepting a suggestion twice must each produce one result. This is why the unique constraints above exist.
-- **AI output is a proposal, not a command.** See security.
+- **Idempotency.** Saving the same URL twice (R16), retrying an extraction job and reprocessing an item must each produce one result. This is why the unique constraints above exist.
+- **Model output is data, never a command.** See security.
 
 ### Security & validation
 
-- **Auth mechanism is undecided** (AGENTS.md lists no auth library). Whatever is chosen must meet: passwords hashed with argon2id (memory ≥ 19 MiB, iterations ≥ 2, parallelism 1) or bcrypt cost ≥ 12; session cookie `httpOnly`, `secure` in production, `sameSite=lax`; no token in `localStorage`.
-- **CSRF:** cookie-authenticated state-changing routes require a custom header that `api-client` always sends, plus `sameSite`. Bearer-token clients (extension) are exempt because no ambient credential is sent.
-- **Capture tokens (S13):** 32+ random bytes, shown once, stored only as a hash (SHA-256 is enough for high-entropy secrets), scoped (`save`, `read+save`), revocable, `last_used` updated, max 10 per user. Revocation takes effect on the next request.
-- **Ownership over role.** There is no RBAC for users: every query for a bookmark, collection or token is scoped by `user_id`. A missing ownership filter is a blocker, same as missing auth. Admin routes require an `isAdmin` flag checked server-side and write an audit entry for every mutation.
-- **SSRF guard (critical for this product).** The server fetches user-supplied URLs. `PageFetcher` must: allow `http`/`https` only; resolve DNS and reject loopback, link-local, private, and cloud-metadata addresses, re-checking after every redirect; cap redirects (5), response size (2 MB), and time (15 s); send no cookies or auth headers. The URL check in S4 is a UX hint, not the control.
-- **Untrusted page content going into an LLM.** Fetched text may contain instructions. The `EnrichmentProvider` receives it as data, its output is parsed against a strict schema (type enum, tags ≤ 20 × 40 chars, summary ≤ 1,000 chars, collection chosen only from the user's existing ids or a proposed new name), and the result is stored as a `suggestion`. Nothing the model returns triggers an action. Never put secrets or other users' data in the prompt.
-- **Rendering fetched content:** titles, summaries and notes are text. Escape them (React does by default); never `dangerouslySetInnerHTML`. Outbound links get `rel="noopener noreferrer"`. Only `http`/`https` URLs are ever rendered as `href`.
-- **Public share pages (S10, S11):** read-only endpoints, no session, rate-limited; slug is generated from ≥ 128 bits of randomness; a disabled and a nonexistent slug return the identical 404; private notes are excluded unless the owner enabled them; response never includes `user_id`.
+- **Authentication (D22, D46, D47).** Supabase Auth, called only from our server.
+  - Web: the session lives in httpOnly, `secure` (production), `sameSite=lax` cookies written by `@supabase/ssr` on the server. The browser never calls Supabase and no Supabase variable is `NEXT_PUBLIC_`. No token in `localStorage`.
+  - Extension: `Authorization: Bearer <Supabase access token>`, verified with `getClaims` (asymmetric signing keys).
+  - Our own `users` table, keyed by the Supabase user id, holds `is_admin` and `suspended_at`. Suspension is checked on every request, because a Supabase ban does not invalidate an access token before `exp`. Never write to the `auth` schema.
+  - The Supabase secret key is used only by the `AuthAdmin` adapter.
+  - Password rules, hashing and email confirmation are Supabase's; keep `minimum_password_length` in `supabase/config.toml` equal to the Zod schema.
+- **CSRF:** cookie-authenticated state-changing routes require a custom header that `api-client` always sends, plus `sameSite`. Unauthenticated writes (sign-in, sign-up, reset) require it too. Bearer and personal-token clients are exempt because no ambient credential is sent.
+- **Personal tokens (R23, for the iOS Shortcut; built by the clients spec):** 32+ random bytes, shown once, stored only as a hash (SHA-256 is enough for high-entropy secrets), scoped (`save`, `read+save`), revocable, `last_used` updated, max 10 per user, created and revoked in the web library. Revocation and suspension take effect on the next request.
+- **Ownership over role.** There is no RBAC for users: every query for a bookmark, recipe card, note or token is scoped by `user_id`. A missing ownership filter is a blocker, same as missing auth.
+- **Admin (D42, R20).** Admin routes require `is_admin`, checked server-side; non-admins get `403` from the API and `notFound()` from admin pages. Every admin mutation and every impersonation writes an audit row in the same transaction. Impersonation is read-only. The audit table is append-only (no update/delete path; database triggers reject `UPDATE`, `DELETE`, `TRUNCATE`).
+- **SSRF guard (critical for this product).** The server fetches user-supplied URLs. `PageFetcher` must: allow `http`/`https` only; resolve DNS and reject loopback, link-local, private, and cloud-metadata addresses, re-checking after every redirect; cap redirects (5), response size (2 MB), and time (15 s); send no cookies or auth headers. URL validation in the UI is a hint, not the control.
+- **Untrusted content going into a model.** Descriptions, comments, page text and transcripts may contain instructions. The `ModelProvider` receives them as data. Its output is parsed against a strict schema: category from R08 or none (R12); recipe cards with name, ingredients and ordered steps (R05). Every fact must be traceable to acquired creator evidence (R01, R21); gaps are marked, not filled (R02). The output may set the category and write recipe cards and nothing else: it never triggers another side effect. Never put secrets or other users' data in a prompt.
+- **Rendering fetched content:** titles, recipe text, transcripts and notes are text. Escape them (React does by default); never `dangerouslySetInnerHTML`. Outbound links get `rel="noopener noreferrer"`. Only `http`/`https` URLs are ever rendered as `href`.
 - **Mass assignment:** a route never spreads the request body into `em.create()`/`em.assign()`. It uses the parsed schema output.
 - **Injection:** only MikroORM query APIs; no string-built SQL. Full-text queries pass user input through `plainto_tsquery`/parameters.
-- **Rate limiting:** login, signup, magic link, password reset, public collection views, and bookmark creation per token. A per-IP+key counter is enough for the MVP; note it as needing a shared store before multi-instance deployment.
-- **Quota and cost control:** enrichment count per user per day enforced in `enrichment` before a provider call; exhausted quota sets `pending_quota`, not an error.
-- **Import limits:** 20 MB, 5,000 links, extensions allowlisted, parsed with a non-executing parser, each URL passes the same validation as S4.
-- **Secrets & logging:** env validated at startup; `.env` git-ignored; the logger redacts passwords, tokens, cookies and `Authorization`. Do not log page bodies or prompts.
-- **Auth messages:** generic on login and magic link; never reveal whether an email exists (S1 error copy already follows this).
-- **IDs:** UUID primary keys.
+- **Rate limiting:** sign-in, sign-up and password reset are rate-limited by Supabase Auth. Saves through personal tokens are limited per token. A per-key counter is enough for the MVP; note it as needing a shared store before multi-instance deployment.
+- **Daily limit and cost (R19, D17, D40):** 5 processed saves per user per day, reset at midnight UTC, enforced in the worker before any provider call; overflow is stored and processed the next day, not rejected; admins are exempt.
+- **Secrets & logging:** env validated on first use (not at build time); `.env` git-ignored; the logger redacts passwords, tokens, cookies (including `sb-*`) and `Authorization`. Do not log page bodies, transcripts or prompts. Supabase secret key, OpenAI key and Resend key live only in server env.
+- **Auth messages:** generic on sign-in, sign-up and password reset; never reveal whether an email exists.
+- **IDs:** UUID primary keys; `users.id` is the Supabase user id.
 - **Dependencies:** `pnpm audit` in the validation gate; no new dependency for what 20 lines cover.
 
 ### Code quality
@@ -148,7 +150,7 @@ When two pull in different directions, choose the one that keeps the change smal
 - Comment only a non-obvious why.
 - Early returns over nested `if`s. Error and empty paths handled where they occur.
 - No empty `catch`. Handle, log with context, or rethrow.
-- Name constants; say why when the value is not obvious (15 s fetch timeout, 30-day trash).
+- Name constants; say why when the value is not obvious (15 s fetch timeout, 5 saves a day).
 - Booleans read positively. No bare `true`/`false` arguments; use an options object.
 - No dead code, commented-out code, or stray `console.log`.
 - A diff traces to its stated purpose: no drive-by renames or formatting passes.
@@ -160,29 +162,29 @@ When two pull in different directions, choose the one that keeps the change smal
 
 - [ ] Concept folder names match the table; no entity without a service path and vice versa.
 - [ ] No import breaks the direction in section 1; no cross-package relative or deep import.
-- [ ] `core` has no `next`, `react`, or `@mikro-orm` import; `ui` has no fetch or `db` import.
+- [ ] `core` has no `next`, `react`, `@mikro-orm` or vendor SDK import; `ui` has no fetch or `db` import.
 - [ ] Routes use `apiHandler`; client calls go through `api-client`; lists/forms use the shared components or give a reason.
 - [ ] `pnpm typecheck && pnpm lint && pnpm build` pass. ESLint (`no-restricted-imports`, `no-restricted-globals`, `no-restricted-syntax` in the root and `packages/app` configs) enforces the package boundaries, ui-never-fetches, MikroORM-only-in-db, and the `apiCall`-only rule; do not disable them to get a change through.
 
 **Security** (blocker unless stated)
 
-- [ ] Auth enforced server-side on every non-public route.
+- [ ] Auth enforced server-side on every non-public route; suspended users rejected.
 - [ ] Every record access is scoped by the owner; no insecure direct object reference.
 - [ ] Check-then-act on shared data is in a transaction and backed by a unique constraint.
 - [ ] Any code that fetches a user URL goes through `PageFetcher` and its SSRF guard.
-- [ ] LLM output is schema-validated and stored as a suggestion; it never triggers a side effect.
-- [ ] No secret, token, cookie, page body or prompt in logs, errors or client payloads.
+- [ ] Model output is schema-validated, grounded in acquired evidence (R01), and only sets a category or recipe cards.
+- [ ] No secret, token, cookie, page body, transcript or prompt in logs, errors or client payloads.
 - [ ] Writes parse an explicit schema; no mass assignment.
-- [ ] Public endpoints leak nothing about private data or about whether a hidden slug existed.
+- [ ] Admin actions are audited in the same transaction; impersonation is read-only.
 - [ ] Errors in security decisions deny. (blocker)
 - [ ] Cookie flags preserved when auth code is touched. (major)
-- [ ] Rate limit present on credential and public endpoints touched. (major)
+- [ ] Rate limit present on credential and token endpoints touched. (major)
 - [ ] A security bug fix ships a regression test that fails without it. (major)
 
 **Correctness & tests**
 
-- [ ] Duplicate save, concurrent accept, and retry-of-enrichment have tests for the repeated/concurrent case.
-- [ ] Every one of loading / empty / error / success is reachable for each new screen (doc 04).
+- [ ] Duplicate save, retry of an extraction job, and reprocessing an edited recipe card (R15) have tests for the repeated case.
+- [ ] Every one of loading / empty / error / success is reachable for each new screen.
 - [ ] A migration accompanies every entity change; no merged migration is edited.
 - [ ] Behavior changes ship with a test that fails on the old code.
 - [ ] New code is covered 100% by unit tests (`pnpm test:coverage`); new pages and database-crossing flows also get an integration test in `packages/integration`.
@@ -192,167 +194,85 @@ When two pull in different directions, choose the one that keeps the change smal
 
 ## 2. How to add a new concept or feature (for the agent)
 
-1. Read `.ai/lessons.md` and the relevant screen in `.ai/mockups/funtionality/docs/04-screen-specifications.md`.
+1. Read `.ai/lessons.md`, the relevant rules and decisions in `.ai/specs/product-brief.md`, and the active spec for the feature.
 2. `db`: entity at `entities/<concept>/<name>.entity.ts`, export from `entities/index.ts`, then `pnpm db:migration:create`; review the SQL; commit entity and migration together. Add the repository in `repositories/<concept>/`.
-3. `core`: repository port, service in `services/<concept>/`, schemas in `validators/<concept>/`, events in `events/` if it emits any, errors in `http/errors.ts` only if a new code is needed.
+3. `core`: repository port, service in `services/<concept>/`, Zod schemas in `validators/<concept>/`, events in `events/` if it emits any, errors in `http/errors.ts` only if a new code is needed.
 4. `app/src/server/container.ts`: register the repository implementation and the service by hand; add the `Cradle` type next to the `register*` helper.
-5. `app/src/app/api/v1/<concept>/.../route.ts`: wrap in `apiHandler`; call `requireSession`/`requireToken` first; parse with the shared schema; call one service method; return the body from doc 04.
+5. `app/src/app/api/v1/<concept>/.../route.ts`: wrap in `apiHandler`; call `requireSession`/`requireToken` first; parse with the shared schema; call one service method; return the body the spec defines.
 6. Page in the right route group (`(site)`, `(app)`, `(admin)`): Server Component with `await connection()` and `<Suspense>` with the `loading-state` fallback; mutations through server actions or `api-client` calling the service-backed route; `error-state` and `empty-state` for the other states.
 7. Tests next to the code. Add a lesson if something surprised you.
 8. Never create `modules/<concept>/`, per-concept setup files, or auto-discovery.
 
 ---
 
-## 3. Changes to apply to `AGENTS.md`
+## 3. Target package structure
 
-Add after **Monorepo layout**:
-
-```markdown
-### Domain concept convention
-
-Code is organised by concept, not by module runtime. A concept (`auth`, `bookmarks`,
-`collections`, `tags`, `enrichment`, `search`, `transfer`) is a same-named sub-folder
-repeated in the layers that need it:
-
-- `packages/db/src/entities/<concept>/<name>.entity.ts`, `repositories/<concept>/`
-- `packages/core/src/services/<concept>/` (services, repository and external ports,
-  adapters), `validators/<concept>/`
-- `packages/app/src/app/api/v1/<concept>/.../route.ts` and the pages that use it
-
-Create a concept folder only when its first file is added. `core` cannot import `db`,
-so a service depends on a repository port declared in `core`; `db` implements it and
-`container.ts` binds the two. See `.ai/docs/engineering-standards.md`.
-
-### Shared API and UI layers
-
-- `packages/core/src/http/` — `AppError` hierarchy, `api-handler`, `auth` helpers.
-  Every route handler is wrapped in `apiHandler`; none writes its own try/catch.
-- `packages/app/src/lib/api-client.ts` — the only browser `fetch('/api/…')` site.
-- `packages/ui/src/components/` — shadcn primitives (flat, via the CLI),
-  `feedback/`, `data-table`, `crud-form`, and `<concept>/` presentational components.
-- Server code that fetches user-supplied URLs goes through `PageFetcher` only.
-```
-
----
-
-## 4. Proposed package structure
+What the MVP specs build toward. Paths appear when their first file lands; the spec that adds each part is named.
 
 ```
 packages/
   app/src/
+    proxy.ts                          # Supabase session refresh only (foundation)
     app/
-      (site)/                         # public, Tailwind
-        page.tsx                      # landing
-        login/page.tsx                # S1
-        signup/page.tsx               # S1
-        s/[slug]/page.tsx             # S10 public collection (S11 via notFound())
-      (app)/                          # product, shadcn — NEEDS APPROVAL (section 6)
-        welcome/page.tsx              # S2
-        library/page.tsx              # S3  (+ library/c/[id], library/t/[tag])
-        inbox/page.tsx                # S5
-        search/page.tsx               # S6
-        collections/page.tsx          # S8  (S9 share dialog is a client component)
-        data/page.tsx                 # S12
-        integrations/page.tsx         # S13
-        trash/page.tsx                # S14
-        settings/page.tsx             # S15
-        # S4 add dialog and S7 detail drawer: client components, not routes
+      (site)/page.tsx                 # public landing
+      (app)/                          # product UI, shadcn, phone-first
+        sign-in/ sign-up/ forgot-password/ reset-password/   # foundation
+        library/page.tsx              # browse by category / Uncategorised (library spec; foundation placeholder)
+        library/[id]/page.tsx         # bookmark: recipe cards, note, transcript, source (library spec)
+        search/page.tsx               # library spec
+        welcome/page.tsx              # onboarding, D43 (clients spec)
+        settings/tokens/page.tsx      # personal tokens, R23 (clients spec)
       (admin)/admin/
-        page.tsx                      # S16
-        jobs/page.tsx                 # S17
-        users/page.tsx                # S18
+        page.tsx                      # database status (exists)
+        users/ audit/                 # foundation
+        jobs/                         # failed jobs + retry (extraction spec)
+      auth/{callback,confirm,sign-out}/   # browser auth handlers (foundation)
       api/v1/
-        auth/{signup,login,logout,magic-link,password-reset}/route.ts
-        me/route.ts                   # + me/password, me/ai-settings, me/usage
-        bookmarks/route.ts            # GET list, POST create
-        bookmarks/[id]/route.ts       # GET, PATCH, DELETE
-        bookmarks/[id]/{enrich,open,restore}/route.ts
-        bookmarks/[id]/suggestions/{accept,dismiss}/route.ts
-        bookmarks/{check,counts,bulk}/route.ts
-        collections/route.ts          # + [id], [id]/share
-        tags/route.ts
-        search/route.ts               # + search/suggest
-        imports/route.ts              # + [id]
-        exports/route.ts              # + [id]
-        tokens/route.ts               # + [id]
-        public/collections/[slug]/route.ts   # + /bookmarks
-        admin/{stats,jobs,users,audit}/route.ts
-        health/route.ts
+        auth/* me/ admin/{users,audit}/   # foundation
+        bookmarks/ recipes/ search/       # library and extraction specs
+        tokens/                           # clients spec
+        health/route.ts                   # exists
     lib/api-client.ts
-    server/container.ts               # composition root (only place that registers)
+    server/{container.ts, env.ts, auth/}  # composition root; Supabase adapters
 
   core/src/
-    index.ts                          # DI helpers, Cradle (exists)
-    container.ts                      # createAppContainer (exists)
-    config/env.ts
-    logger.ts
-    register.ts                       # registerCore: logger, eventBus
-    http/{errors,api-handler,auth}.ts
-    events/{event-bus,event-map}.ts
-    services/
-      auth/{user.service,token.service,user-repository.port,token-repository.port}.ts
-      bookmarks/{bookmark.service,bookmark-repository.port}.ts
-      collections/{collection.service,collection-repository.port}.ts
-      tags/tag.service.ts
-      enrichment/
-        enrichment.service.ts
-        page-fetcher.port.ts
-        enrichment-provider.port.ts
-        adapters/{http-page-fetcher,mock-enrichment-provider}.ts
-      search/search.service.ts
-      transfer/{import.service,export.service}.ts
-    validators/{auth,bookmarks,collections,transfer}/*.schema.ts
+    http/ events/ logger.ts register.ts   # exist
+    services/{auth,admin,bookmarks,recipes,extraction,search}/
+    validators/{auth,bookmarks,recipes}/*.schema.ts
 
   db/src/
-    entities/
-      base.entity.ts
-      auth/{user,api-token}.entity.ts
-      bookmarks/bookmark.entity.ts
-      collections/collection.entity.ts
-      enrichment/enrichment-job.entity.ts
-    repositories/<concept>/*.repository.ts
+    entities/{auth,admin,bookmarks,recipes,extraction}/
+    repositories/<concept>/
     migrations/
 
-  ui/src/
-    components/
-      button.tsx …                    # shadcn primitives, flat (exists)
-      feedback/{loading-state,error-state,empty-state}.tsx
-      data-table.tsx
-      crud-form.tsx
-      bookmarks/{bookmark-card,bookmark-row,ai-badge,confidence-meter}.tsx
-      collections/collection-tree.tsx
-    lib/utils.ts                      # cn (exists)
+  ui/src/components/
+    button.tsx …                      # shadcn primitives (flat)
+    feedback/                         # exists
+    recipes/recipe-card.tsx           # library spec
+
+  integration/                        # Supabase CLI local stack + agent-browser (foundation Phase 2)
+  extension/                          # Chrome extension (clients spec)
 ```
 
-Tags are derived from `bookmarks.tags` (a `text[]` column with a GIN index) in the MVP, so there is no `Tag` entity. Revisit if tags need their own attributes.
-
-Each mockup screen maps to exactly one page or one client component above; the mapping table in `docs/03-screen-and-navigation-map.md` is the index.
+The worker's location (`packages/worker` or inside `app`) is decided by the extraction spec.
 
 ---
 
-## 5. Migration plan (current repo → this structure)
+## 4. Migration plan (historical)
 
-Incremental; each step builds on its own.
-
-1. **Docs first.** Apply section 3 to `AGENTS.md`. Fix the `.ai` template mismatch in this file (done by this rewrite).
-2. **Foundation in `core`.** Add `http/errors.ts`, `http/api-handler.ts`, `http/auth.ts` (ports only), `events/`, `logger.ts`, `register.ts` (`registerCore`). Add subpath exports (`./http`, `./events`). `config/env.ts` waits for the first new env var (the db package already owns database settings). Unit tests: Vitest, decided and in place (see `.ai/specs/archive/2026-10-14-ci-and-testing.md`); 100% coverage is enforced.
-3. **Foundation in `app`.** `lib/api-client.ts`; `api/v1/health/route.ts` built with `apiHandler` as the reference route; wire into the existing composition root.
-4. **Foundation in `ui`.** Add `feedback/*` with the project's own tokens. Add `data-table` and `crud-form` when the first list/form screen is built, not before.
-5. **First concept: `bookmarks`** (entity, migration, repository, port, service, schema, routes, S3/S4). Follow section 2 exactly. This is the reference every later concept copies.
-6. **Then** `collections`, `enrichment` (with mock adapter and the SSRF-guarded fetcher), `auth`, `search`, `transfer`, admin.
-7. After each step: `pnpm typecheck && pnpm lint && pnpm build`.
-
-**Implementation scope of the standards task** = steps 1–3 plus the `feedback/*` part of step 4. Domain entities and screens (step 5 onward) are product work and are not part of "implement the standards".
+The 2026-10-14 plan: docs, then foundation in `core` (`http/`, `events/`, `logger`, `register`), `app` (`api-client`, the `health` route) and `ui` (`feedback/*`). Steps 1–4 are implemented. Its later steps (bookmarks, collections, enrichment, transfer) are replaced by the specs named in section 3.
 
 ---
 
-## 6. Open decisions (Ask First)
+## 5. Decisions formerly open
 
-| # | Decision | Recommendation | Why it needs you |
-|---|---|---|---|
-| 1 | Route group and styling for the product app | New `(app)` group, shadcn + `ui` theme | AGENTS.md defines only `(site)` and `(admin)` |
-| 2 | Validation library | Zod | Not in the stack table; a new dependency |
-| 3 | Auth mechanism | Decide before step 6; magic link + password | Defines session reader and CSRF approach |
-| 4 | Async enrichment via DB table + `after()` | Yes for MVP | Alternative is an external queue, which this document excludes |
-| 5 | Full-text via PostgreSQL, semantic later | Yes | pgvector is an extension to install |
-| 6 | `db → core` repository ports | Yes | Differs from the earlier template's `app → core → db` and follows AGENTS.md |
+| # | Decision | Outcome |
+|---|---|---|
+| 1 | Route group for the product app | `(app)` on shadcn and the `ui` theme (platform-foundation spec, Q6) |
+| 2 | Validation library | Zod (D49) |
+| 3 | Auth mechanism | Supabase Auth through our server (D22, D46) |
+| 4 | Async processing | Worker container polling a job table (D48), not `after()` |
+| 5 | Search | PostgreSQL full-text over titles, ingredients, notes (D32); no semantic search |
+| 6 | `db → core` repository ports | Yes, as AGENTS.md states |
+
+No open decisions remain here. New ones go into a spec.

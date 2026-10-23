@@ -1,23 +1,20 @@
 # mml-bookmark
 
-A link storage. Save links, group them, and connect them to other tools.
+A personal link library. Save a link and the server sorts it into a category; recipe videos and pages become recipe cards you can cook from without rewatching the video.
 
-## Features
+## MVP scope
 
-- **Save links**: store URLs with a title, description and tags.
-- **Group links**: organize links into collections (folders, categories) so they are easy to find later.
-- **Integrations**: connect with external services to import, export or sync links.
+Product source of truth: `.ai/specs/product-brief.md`.
 
-## Planned integrations
-
-- Browser extension for one-click saving
-- Import/export (browser bookmarks, JSON, CSV)
-- Read-it-later and note-taking apps
-- Webhooks / API for automation
+- **Capture**: Chrome extension (loaded unpacked), an iOS Shortcut in the share sheet, or a pasted URL.
+- **Sorting**: at most one category per link (sport exercises, recipe, fun), assigned automatically; the rest is Uncategorised.
+- **Recipes**: links in `recipe` get recipe cards (name, image, ingredients, steps) extracted from the creator's description, comments, linked page or speech, translated to English, editable.
+- **Library**: browse by category, search titles, ingredients and notes; works fully on a phone.
+- **Accounts**: open sign-up with email + password or Google (Supabase); private libraries; an admin area.
 
 ## Status
 
-Early stage. The monorepo, database layer, DI container and UI kit are scaffolded; no bookmark features are implemented yet.
+Early stage. The monorepo, database layer, DI container, HTTP layer and UI kit are scaffolded. Next: `.ai/specs/2026-10-23-platform-foundation.md` (auth, users, admin), then the extraction, clients and library specs.
 
 ## Architecture
 
@@ -57,7 +54,7 @@ app ──► ui
 
 ### Code organisation
 
-Code is grouped by concept (`auth`, `bookmarks`, `collections`, `tags`, `enrichment`, `search`, `transfer`) with the same folder name in `db`, `core` and `app`. Services in `core` depend on repository ports; `db` implements them. Naming, security rules and the review checklist are in `.ai/docs/engineering-standards.md`; the product concept and clickable mockup are in `.ai/mockups/funtionality/`.
+Code is grouped by concept (`auth`, `admin`, `bookmarks`, `recipes`, `extraction`, `search`) with the same folder name in `db`, `core` and `app`. Services in `core` depend on repository ports; `db` implements them. Naming, security rules and the review checklist are in `.ai/docs/engineering-standards.md`. The earlier product concept and clickable mockup in `.ai/mockups/funtionality/` are superseded by the brief and kept as history.
 
 ### Testing and CI
 
