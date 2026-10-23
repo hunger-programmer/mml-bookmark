@@ -4,21 +4,26 @@ The app runs on Next.js 16 with breaking changes compared to older versions — 
 
 ## Project: mml-bookmark
 
-A link/bookmark storage app: save links, group them, connect them to other tools.
+A personal link library: save a link from the Chrome extension, an iOS Shortcut or by pasting it; the server sorts it into at most one category (sport exercises, recipe, fun) and turns recipe videos and pages into recipe cards. Product source of truth: `.ai/specs/product-brief.md`.
 
 ## Stack
 
-These are fixed decisions. Do not swap a library or add an alternative to one of them without the user's approval.
+These are fixed decisions. Do not swap a library or add an alternative to one of them without the user's approval. Rows marked *(planned)* are decided but not in the code yet; the named spec adds them.
 
 | Concern | Choice |
 |---|---|
 | Language | TypeScript (strict), pinned to 6.0.x — typescript-eslint does not support TS 7 yet |
 | Framework | Next.js 16 (App Router), React 19 |
-| Database | PostgreSQL 17 |
+| Database | PostgreSQL 17, hosted on Supabase (D41) |
 | ORM | MikroORM 7 (`@mikro-orm/postgresql`), migrations via `@mikro-orm/migrations`, connection pool configured from env |
+| Authentication | Supabase Auth through `@supabase/ssr` + `@supabase/supabase-js`, server-side only; email + password and Google (D22, D46, D54) *(planned: platform-foundation spec)* |
+| Validation | Zod 4, schemas in `core` shared by route and form (D49) *(planned: platform-foundation spec)* |
+| Transactional email | Resend SMTP, configured as Supabase Auth's custom SMTP *(planned: platform-foundation spec)* |
+| Model provider | OpenAI, including Whisper (D38) *(planned: extraction spec)* |
+| Hosting | Vercel for the web app at mml-bookmarks.hunger-programmers.com (D41, D61); a Fly.io worker container for background processing (D48, D56, *planned: extraction spec*); production and local only, no staging (D58) |
 | Dependency injection | Awilix |
 | Styling, public pages | Tailwind CSS 4 |
-| Styling, admin ("backend") pages | shadcn/ui (Base UI primitives, `base-nova` style) on Tailwind 4 |
+| Styling, product and admin pages | shadcn/ui (Base UI primitives, `base-nova` style) on Tailwind 4 |
 | Unit tests | Vitest 5 + `@vitest/coverage-v8` (root dev dependency) |
 | Integration tests | Vitest + Testcontainers (`@testcontainers/postgresql`) + agent-browser, in `packages/integration` |
 | Package manager | pnpm workspaces (version pinned in root `packageManager`) |
@@ -32,14 +37,15 @@ packages/
 ├── core/  @mml-bookmark/core  Reusable, framework-agnostic code: DI container helpers, shared types, domain services
 ├── db/    @mml-bookmark/db    Data layer: MikroORM config, entities, repositories, migrations, ORM bootstrap
 ├── ui/    @mml-bookmark/ui    Reusable UI components (shadcn/ui), `cn` helper, admin theme CSS
-└── integration/ @mml-bookmark/integration  Integration tests only: Testcontainers PostgreSQL + agent-browser against a production build
+├── integration/ @mml-bookmark/integration  Integration tests only: Testcontainers PostgreSQL + agent-browser against a production build
+└── extension/   @mml-bookmark/extension    (planned: clients spec) Chrome extension, loaded unpacked (D57); calls `/api/v1` with a Supabase Bearer token
 ```
 
 `packages/` is the only place for code. New sub-packages go there, named `@mml-bookmark/<name>`, and are added to this table and to the README.
 
 ### Package rules
 
-1. **Dependency direction:** `app → ui, db, core`; `db → core`; `core` and `ui` depend on no internal package; `integration` depends on none (it drives the built app over HTTP and a browser). Never import "upwards" (e.g. `core` importing `db`, anything importing `app`).
+1. **Dependency direction:** `app → ui, db, core`; `db → core`; `extension → core` (D49; it reaches the server only over HTTP); `core` and `ui` depend on no internal package; `integration` depends on none (it drives the built app over HTTP and a browser). Never import "upwards" (e.g. `core` importing `db`, anything importing `app`).
 2. **Source-only packages.** Internal packages have no build step; their `exports` point at `src/*.ts(x)`. Turbopack transpiles workspace packages itself, so no `transpilePackages` entry is needed. Server-only third-party packages that must not be bundled go in `serverExternalPackages` in `packages/app/next.config.ts`.
 3. **Import through `exports` only** (`@mml-bookmark/db`, `@mml-bookmark/ui/components/button`). No relative imports across package boundaries, no deep imports into another package's `src/`.
 4. **`core` stays framework-agnostic:** no React, no Next.js, no database driver imports.
@@ -50,13 +56,13 @@ Rules 1, 3, 4 and 5 are enforced by ESLint (`eslint.config.mjs`, `packages/app/e
 
 ### Domain concept convention
 
-Code is organised by concept, not by a module runtime. A concept (`auth`, `bookmarks`, `collections`, `tags`, `enrichment`, `search`, `transfer`) is a same-named sub-folder repeated in the layers that need it:
+Code is organised by concept, not by a module runtime. A concept (`auth`, `admin`, `bookmarks`, `recipes`, `extraction`, `search`) is a same-named sub-folder repeated in the layers that need it:
 
 - `packages/db/src/entities/<concept>/<name>.entity.ts` and `repositories/<concept>/`
 - `packages/core/src/services/<concept>/` (services, repository and external ports, adapters) and `validators/<concept>/`
 - `packages/app/src/app/api/v1/<concept>/.../route.ts` and the pages that use it
 
-Create a concept folder only when its first file is added. `core` cannot import `db`, so a service depends on a repository **port** declared in `core`; `db` implements it and the composition root binds the two. Event IDs are `concept.entity.action` (e.g. `bookmarks.bookmark.created`), emitted through the in-process `EventBus` from `@mml-bookmark/core/events`; there is no queue. Full naming table, security rules and review checklist: `.ai/docs/engineering-standards.md`.
+Create a concept folder only when its first file is added. `core` cannot import `db`, so a service depends on a repository **port** declared in `core`; `db` implements it and the composition root binds the two. Event IDs are `concept.entity.action` (e.g. `bookmarks.bookmark.created`), emitted through the in-process `EventBus` from `@mml-bookmark/core/events`. The event bus is not a queue: background processing (categorisation, extraction, transcription) runs in the worker, which polls a job table that Next.js only writes to (D48, extraction spec). Full naming table, security rules and review checklist: `.ai/docs/engineering-standards.md`.
 
 ### Shared API and UI layers
 
@@ -86,8 +92,10 @@ Create a concept folder only when its first file is added. `core` cannot import 
 ## Styling
 
 - **Public pages** live in `packages/app/src/app/(site)/` and use plain Tailwind utility classes. Their CSS entry is `(site)/globals.css`. Do not import `@mml-bookmark/ui` components there.
+- **Product pages** (sign-in, the library and everything a signed-in user sees) live in `packages/app/src/app/(app)/` and are built from shadcn/ui components in `@mml-bookmark/ui`, phone-first (D54). Their CSS entry is `@mml-bookmark/ui/globals.css`. *(The group is created by the platform-foundation spec.)*
 - **Admin ("backend") pages** live in `packages/app/src/app/(admin)/admin/` and are built from shadcn/ui components in `@mml-bookmark/ui`. Their CSS entry is `@mml-bookmark/ui/globals.css`.
-- `(site)` and `(admin)` are separate root layouts, so the two themes never mix. Moving between them is a full page load; that is intended.
+- `(site)`, `(app)` and `(admin)` are separate root layouts. `(site)` never mixes with the shadcn theme; `(app)` and `(admin)` share it. Moving between groups is a full page load; that is intended.
+- The interface is English only (N06).
 - Add shadcn components to the ui package, never to the app: `pnpm --filter @mml-bookmark/ui dlx shadcn@latest add <component>`. Do not hand-edit generated components unless the change is deliberate and noted in the run log.
 - Merge class names with `cn` from `@mml-bookmark/ui/lib/utils`.
 
@@ -146,13 +154,13 @@ All AI-related project metadata lives in `.ai/`. Agents MUST follow this structu
 ├── lessons/                # Detailed lessons
 │   └── YYYY-MM-DD-slug.md
 ├── docs/                   # Long-lived project docs (engineering-standards.md)
-└── mockups/                # Product concept: docs/ (users, flows, screens, API) + clickable HTML/TS mockup
+└── mockups/                # Superseded product concept (D39), kept as history: docs/ + clickable HTML/TS mockup
     └── funtionality/       # (sic) open mockups/index.html; bookmark-portal-concept.zip is the same content
 ```
 
 Each of `specs/`, `runs/` and `lessons/` has a `README.md` with its template. `docs/` and `mockups/` are not dated: update them in place.
 
-Product source of truth: the concept in `.ai/mockups/funtionality/docs/` (screen specs and the `/api/v1` endpoint catalogue) and `.ai/docs/engineering-standards.md` (naming, security, review checklist). Open decisions there that need the user's approval before building (section 6): `(app)` route group for the product UI, validation library (Zod proposed), auth mechanism. `.ai/cezar/` and `.ai/mcp/` belong to external tooling — do not edit them.
+Product source of truth: `.ai/specs/product-brief.md` (scope, business rules R*, non-goals N*, decisions D*), then the active specs in `.ai/specs/`, then `.ai/docs/engineering-standards.md` (naming, security, review checklist). The concept in `.ai/mockups/funtionality/` is superseded (D39); use it only for history or UI inspiration, never for scope or the API. A business rule, non-goal or decision changes only through a superseding row the founder approves. `.ai/cezar/` and `.ai/mcp/` belong to external tooling — do not edit them.
 
 ### Naming
 
